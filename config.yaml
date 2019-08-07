@@ -1,0 +1,36 @@
+
+workdir: "/scratch/cgobet/snake_codon/" # Working directory to be defined by user 
+homedir: "/home/cgobet/CODON_FINAL/SNAKE_FINAL/" # Home directory to be defined by user 
+#Species (Mouse, Yeast or Human)
+species: Yeast # Species to be defined by user 
+#URL for Ensembls sequence files for Mouse, Human and Yeast (S. cer.)  
+Mouse:
+  cds: "ftp://ftp.ensembl.org/pub/release-95/fasta/mus_musculus/cds/Mus_musculus.GRCm38.cds.all.fa.gz" 
+  gtf: "ftp://ftp.ensembl.org/pub/release-95/gtf/mus_musculus/Mus_musculus.GRCm38.95.gtf.gz"
+  genome: "ftp://ftp.ensembl.org/pub/release-95/fasta/mus_musculus/dna/Mus_musculus.GRCm38.dna.primary_assembly.fa.gz"
+
+Human:
+  cds: "ftp://ftp.ensembl.org/pub/release-95/fasta/homo_sapiens/cds/Homo_sapiens.GRCh38.cds.all.fa.gz"
+  gtf: "ftp://ftp.ensembl.org/pub/release-95/gtf/homo_sapiens/Homo_sapiens.GRCh38.95.gtf.gz"
+  genome: "ftp://ftp.ensembl.org/pub/release-95/fasta/homo_sapiens/dna/Homo_sapiens.GRCh38.dna.primary_assembly.fa.gz"
+
+Yeast:
+  cds: "ftp://ftp.ensembl.org/pub/release-95/fasta/saccharomyces_cerevisiae/cds/Saccharomyces_cerevisiae.R64-1-1.cds.all.fa.gz"
+  gtf: "ftp://ftp.ensembl.org/pub/release-95/gtf/saccharomyces_cerevisiae/Saccharomyces_cerevisiae.R64-1-1.95.gtf.gz"
+  genome: "ftp://ftp.ensembl.org/pub/release-95/fasta/saccharomyces_cerevisiae/dna/Saccharomyces_cerevisiae.R64-1-1.dna.toplevel.fa.gz"
+ 
+# path to sample sheet (TSV format, columns: sample, condition, SRR ...)
+samples: samples_Yeast.tsv # to be defined by user
+# the sequencing adapter
+adapter: CTGTAGGCACCATCAAT # TGGAATTCTCGGGTGCCAAGG
+# lower bound read size
+L1: "22"
+# upper bound read size
+L2: "40"
+# Strandness of the the library (pos_neg or neg_pos)
+library: "pos_neg"
+# standard library preparation or UMI adapters (standard or UMI)
+library_type: "standard"
+#UMI individual length
+UMI_length: 4 
+
