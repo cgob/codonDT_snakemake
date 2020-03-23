@@ -15,6 +15,8 @@ Snakemake pipeline to infer single-codon and codon-pair dwell times as well as g
 10. Load the cds parsed and read count files to generate the matrix for the fit.
 11. Select gene and positions. Make the fit with the glm4 function.
 12. Compute coefficients p-value and rescale the coefficients according to our convention (see method section in the paper).
+13. Plot single and codon-pair dwell time heatmaps as well as fragment size distribution.
 
+Please note that if RNA-seq and Ribo-seq are provided for the same sample, RNA-Seq is fitted and used as an GLM offset in the Ribo-seq fit. 
 ## Authors
 Cédric Gobet
