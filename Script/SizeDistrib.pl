@@ -6,8 +6,9 @@ use warnings;
 
 my $f1= shift;
 my %length;
-open BAM,"samtools view <bam_file> |";
+open BAM,"samtools view $f1 |";
 my %reads;
+
 while(<BAM>){
  next if ($_ =~ m/^\@/);
  s/\n//;  s/\r//;  ## removing new line
