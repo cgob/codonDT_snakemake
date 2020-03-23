@@ -13,35 +13,47 @@
 
 import pandas as pd
 import glob 
-
+import numpy as np
 
 #### Load configuration and sample sheet ####
 configfile: "config.yaml"
 
 df = pd.read_csv(config["samples"],sep="\t")
-SAMPLES=df.SAMPLES.unique()
-SRR=df["SRR"]
+df.SAMPLES = df.SAMPLES + "_" + df.Type
+SRR = df.SRR
 spec = config['species']
+types = df.Type
 
 df = df.set_index('SRR') 
-GTF_URL=config[spec]['gtf']
-CDS_URL=config[spec]['cds']
-GENOME_URL=config[spec]['genome']
+
+GTF_URL = config[spec]['gtf']
+CDS_URL = config[spec]['cds']
+GENOME_URL = config[spec]['genome']
 
 homedir=config['homedir']
 workdir: config['workdir'] 
 
+SAMPLES=df.SAMPLES.unique()
+
 ### Function definition ###
 def get_sample_sra_rel(wildcards):
-    return "Data/Raw/" + df[df['SAMPLES']== wildcards.sample].index + ".fastq.gz"
+    return "Data/Raw/" + df[df['SAMPLES']== wildcards.sample].index + ".fastq"
 
+def get_rna_from_ribo(wildcards):
+    sample_name = str(wildcards.sample).split('_RIBO')[0]
+    sample_rna = sample_name + "_RNA"
+
+    if df[df['SAMPLES'] == sample_rna].size == 0:
+        return "Data/Counting/" + str(wildcards.sample) + "_ncount.RData"
+    else:
+        return "Data/Fit/" + sample_rna + "_fit_" + str(wildcards.pair) + ".RData"
 
 ##--------------------------------------##
 ##  Target rule                         ##
 ##--------------------------------------##
 rule all:
      input:
-        expand("Data/Fit/{sample}_coe_pval_{pair}.RData", sample=SAMPLES, pair=["24:25","25:26","23:24"])
+        expand("Data/Fit/{sample}_plot_{pair}.pdf", sample=SAMPLES , pair=["24:25","25:26","23:24"])
 
 ##--------------------------------------##
 ##  Download gtf from Ensembl           ##
@@ -86,27 +98,14 @@ rule run_index_star:
     output: genome = directory('references/' + spec + '/genome')
     shell: "module load gcc/7.4.0; module load star/2.7.0e; mkdir {output.genome}; STAR --runMode genomeGenerate --runThreadN 12 --genomeFastaFiles {input.fa} --sjdbGTFfile {input.gtf} --genomeDir {output.genome}"
 
-##--------------------------------------##
-## Download sra files from GEO          ##
-##--------------------------------------##
+##----------------------------------------------------------------##
+## Download sra files from GEO  with fastq-dump and output fastq  ##
+##----------------------------------------------------------------##
 
 rule downloadSRA:
-    output: 
-         "Data/Raw/{srr}.sra"
-    params:
-         sra = lambda wildcards: str(wildcards.srr)[0:6]
-    shell: "wget ftp://ftp-trace.ncbi.nih.gov/sra/sra-instant/reads/ByRun/sra/SRR/{params.sra}/{wildcards.srr}/{wildcards.srr}.sra -O Data/Raw/{wildcards.srr}.sra"
-
-##--------------------------------------##
-## Convert SRA to Fastq                 ##
-##--------------------------------------##
-
-rule sra2fastq:
-    input:
-        "Data/Raw/{srr}.sra"
     output:
-        "Data/Raw/{srr}.fastq.gz"
-    shell: "module load sra-toolkit/2.9.6; fastq-dump.2.9.6 --gzip {input} -O Data/Raw/"
+         "Data/Raw/{srr}.fastq"
+    shell: "module add sra-toolkit/2.9.6; fasterq-dump {wildcards.srr} -O Data/Raw/"
 
 
 ##--------------------------------------##
@@ -125,12 +124,11 @@ rule sra2fastq:
 ##--------------------------------------##
 ## Merge fastq from the same sample     ##
 ##--------------------------------------##
-
 rule mergefastq:
     input: 
         get_sample_sra_rel
     output:
-        "Data/Raw/{sample}.fastq.gz.merge"
+        "Data/Raw/{sample}.fastq.merge"
     shell: "cat {input} > {output}"
 
 ##--------------------------------------##
@@ -140,10 +138,10 @@ rule mergefastq:
 
 rule runstar:
     input:
-        fastq = "Data/Raw/{sample}.fastq.gz.merge" , genome= rules.run_index_star.output.genome
+        fastq = "Data/Raw/{sample}.fastq.merge" , genome= rules.run_index_star.output.genome
     output:
         "Data/Mapping/{sample}Aligned.sortedByCoord.out.bam"
-    params: star_params = "--outSAMtype BAM SortedByCoordinate --readFilesCommand zcat --seedSearchStartLmax 15 --limitBAMsortRAM 61000000000",
+    params: star_params = "--outSAMtype BAM SortedByCoordinate --seedSearchStartLmax 15 --limitBAMsortRAM 61000000000",
             star_adapter = config["adapter"]
     shell: "module load gcc/7.4.0;  module load star/2.7.0e; STAR --genomeDir {input.genome} {params.star_params} --clip3pAdapterSeq {params.star_adapter} --outFileNamePrefix Data/Mapping/{wildcards.sample} --readFilesIn {input.fastq} --runThreadN 12"
 
@@ -157,6 +155,31 @@ rule samindex:
     output:
         "Data/Mapping/{sample}Aligned.sortedByCoord.out.bam.bai"
     shell: "module load gcc/7.4.0; module load samtools/1.9; samtools index {input}"
+
+
+##--------------------------------------##
+##  Fragment size distribution          ##
+##--------------------------------------##
+
+rule sizedistrib:
+    input:
+        bam ="Data/Mapping/{sample}Aligned.sortedByCoord.out.bam", bam_index="Data/Mapping/{sample}Aligned.sortedByCoord.out.bam.bai"
+    output:
+        "Data/Mapping/{sample}_fragment_size.txt"
+    shell: "module load gcc/7.4.0; module load samtools/1.9; perl {homedir}Script/SizeDistrib.pl {input.bam} > {output}"
+
+
+##--------------------------------------##
+##  Plot size distribution              ##
+##--------------------------------------##
+
+rule plotsizedistrib:
+    input:
+    	"Data/Mapping/{sample}_fragment_size.txt"
+    output:
+        "Data/Mapping/{sample}_fragment_size.pdf"
+    shell: "module add gcc/7.4.0;  module add openblas/0.3.6-openmp; module add r/3.6.0; Rscript {homedir}Script/PlotSizeDistrib.R {input} {output}"
+
 
 ##--------------------------------------##
 ## Read counting and CDS position       ##
@@ -193,7 +216,7 @@ rule loaddata:
         parse_cds=rules.parsecds.output.parse_cds
     output:
         "Data/Counting/{sample}_ncount.RData"
-    shell: "module add gcc/7.4.0; module add r/3.6.0; Rscript {homedir}Script/LoadAndGenData.R {input.count} {output} {input.parse_cds} "
+    shell: "module add gcc/7.4.0;  module add openblas/0.3.6-openmp; module add r/3.6.0; Rscript {homedir}Script/LoadAndGenData.R {input.count} {output} {input.parse_cds} "
 
 ##--------------------------------------##
 ## Make GLM fit (DT and flux)           ##
@@ -206,7 +229,25 @@ rule makefit:
         fit="Data/Fit/{sample}_fit_{pair}.RData", pred="Data/Fit/{sample}_fit_{pair}.RData.pred", cor="Data/Fit/{sample}_fit_{pair}.RData.cor"
     params: codon = '1:40',
 	    mode = 'simple'
-    shell: "module add gcc/7.4.0; module add r/3.6.0; Rscript {homedir}Script/MakeFit.R {input} {output.fit} {params.codon} {wildcards.pair} {params.mode}"
+    wildcard_constraints: sample=".*RNA.*"
+    shell: "module add gcc/7.4.0; module add openblas/0.3.6-openmp; module add r/3.6.0; Rscript {homedir}Script/MakeFit.R {input} NULL {output.fit} {params.codon} {wildcards.pair} {params.mode}"
+
+
+##------------------------------------------------------------------##
+## Make GLM fit (DT and flux) with RNA-seq prediciton as an offset  ##
+##------------------------------------------------------------------##
+
+rule makefit_combined:
+    input:
+        ncount="Data/Counting/{sample}_ncount.RData",
+	rnafit= get_rna_from_ribo
+    output:
+        fit="Data/Fit/{sample}_fit_{pair}.RData", pred="Data/Fit/{sample}_fit_{pair}.RData.pred", cor="Data/Fit/{sample}_fit_{pair}.RData.cor"
+    params: codon = '1:40',
+            mode = 'combined'
+    wildcard_constraints: sample=".*RIBO.*"
+    shell: "module add gcc/7.4.0; module add openblas/0.3.6-openmp; module add r/3.6.0; Rscript {homedir}Script/MakeFit.R {input.ncount} {input.rnafit} {output.fit} {params.codon} {wildcards.pair} {params.mode}"
+
 
 ##--------------------------------------##
 ## Compute p-value and rescale coef.    ##
@@ -217,5 +258,18 @@ rule coepval:
         "Data/Fit/{sample}_fit_{pair}.RData"
     output:
         "Data/Fit/{sample}_coe_pval_{pair}.RData"
-    shell: "module add gcc/7.4.0; module add r/3.6.0; Rscript {homedir}Script/CoeAndPVal.R {input} {output}"
+    shell: "module add gcc/7.4.0; module add openblas/0.3.6-openmp; module add r/3.6.0; Rscript {homedir}Script/CoeAndPVal.R {input} {output}"
+
+
+##-----------------------------------------------##
+## Plot single, pair heatmaps and scatterplot    ##
+##-----------------------------------------------##
+
+rule heatmap:
+    input:
+        coe="Data/Fit/{sample}_coe_pval_{pair}.RData", size="Data/Mapping/{sample}_fragment_size.pdf"
+    output:
+        "Data/Fit/{sample}_plot_{pair}.pdf"
+    shell: "module add gcc/7.4.0; module add openblas/0.3.6-openmp; module add r/3.6.0; Rscript {homedir}Script/PlotHeatmaps.R {input.coe} {output}"
+
 

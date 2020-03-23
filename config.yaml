@@ -19,14 +19,14 @@ Yeast:
   gtf: "ftp://ftp.ensembl.org/pub/release-95/gtf/saccharomyces_cerevisiae/Saccharomyces_cerevisiae.R64-1-1.95.gtf.gz"
   genome: "ftp://ftp.ensembl.org/pub/release-95/fasta/saccharomyces_cerevisiae/dna/Saccharomyces_cerevisiae.R64-1-1.dna.toplevel.fa.gz"
  
-# path to sample sheet (TSV format, columns: sample, condition, SRR ...)
-samples: samples_Yeast.tsv # to be defined by user
+# path tMouseple sheet (TSV format, columns: sample, condition, SRR ...)
+samples: samples_Yeast.tsv.tmp # to be defined by user
 # the sequencing adapter
-adapter: CTGTAGGCACCATCAAT # TGGAATTCTCGGGTGCCAAGG
+adapter: CTGTAGGCACCATCAAT # AGATCGGAAGAGCAC #TGGAATTCTCGGGTGCCAAGG  #AAAAA  ##ATCTCGTATGCCGTCTTCTGCTTG # TGGAATTCTCGGGTGCCAAGG
 # lower bound read size
-L1: "22"
+L1: "24"
 # upper bound read size
-L2: "40"
+L2: "34"
 # Strandness of the the library (pos_neg or neg_pos)
 library: "pos_neg"
 # standard library preparation or UMI adapters (standard or UMI)
