@@ -162,11 +162,11 @@ plot_heatmaps=function(fit,i,site.1,site.2){
   DF.PA.p=reshape2::acast(DF.PA.p,P~A,value.var="z")
   DF.SI.c[DF.SI.p>=0.05]=0
   DF.PA.c[DF.PA.p>=0.05]=0
-  
-  plot_heatmap.pair(DF.PA.c,i,"site 1","site 2",TRUE,TRUE)
-  
-}
 
+  if(!all(DF.PA.c==0)){  
+  plot_heatmap.pair(DF.PA.c,i,"site 1","site 2",TRUE,TRUE)
+  }
+}
 ################################################
 
 colr=c("#87597C", "#DF9158", "#D6ACE3", "#8CE55E", "#65E7D1", "#D042E4", "#E4D94E", "#DFD5DF", "#7C84DC", "#DB6ECB", "#6E9574", "#8CD5E0", "#78A9D4", "#7AE296", "#DED3B2", "#D3D57F", "#C0EAC9", "#7753E2", "#E64B7D", "#DF9DA7")
