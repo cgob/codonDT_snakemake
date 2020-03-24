@@ -128,6 +128,8 @@ plot_heatmaps=function(fit,i,site.1,site.2){
   rownames(DF.SI.c)=change_cc2aa(sapply(strsplit(rownames(SI.c)[grep('X24',rownames(SI.c))],"X24"),"[[",2))
   colnames(DF.SI.c)=c(seq(-23,-1,1),c('E','P','A'),3:16)
   
+  DF.SI.c[DF.SI.p>=0.05]=0
+  
   plot_heatmap.single(DF.SI.c,c(5,7),i,T)
   plot_heatmap.single(DF.SI.c,c(5,7),i,F)
   plot_heatmap.single(DF.SI.c[,grep("E|P|A",colnames(DF.SI.c))],c(32,5),i,T)
@@ -160,7 +162,6 @@ plot_heatmaps=function(fit,i,site.1,site.2){
   
   DF.PA.p=data.frame(A=A.site,P=P.site,z=PA.p[,1])
   DF.PA.p=reshape2::acast(DF.PA.p,P~A,value.var="z")
-  DF.SI.c[DF.SI.p>=0.05]=0
   DF.PA.c[DF.PA.p>=0.05]=0
 
   if(!all(DF.PA.c==0)){  
