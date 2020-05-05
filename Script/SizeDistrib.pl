@@ -1,8 +1,5 @@
 #!/usr/bin/perl
-
-
 use warnings;
-
 
 my $f1= shift;
 my %length;
@@ -11,8 +8,9 @@ my %reads;
 
 while(<BAM>){
  next if ($_ =~ m/^\@/);
- s/\n//;  s/\r//;  ## removing new line
- my @a = split(/\t+/);  ## s 
+ s/\n//;  
+ s/\r//;
+ my @a = split(/\t+/);
  my $l = 0;
  $a[5] =~ s/(\d+)[M]/$l+=$1/eg;  
  
@@ -36,6 +34,4 @@ foreach my $i (1..75){
 }
 
 close BAM;
-
-
 
