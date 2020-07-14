@@ -212,11 +212,11 @@ rule parsecds:
 
 rule loaddata:
     input:
-        count="Data/Counting/{sample}.count", 
+        count_2="Data/Counting/{sample}.count", 
         parse_cds=rules.parsecds.output.parse_cds
     output:
         "Data/Counting/{sample}_ncount.RData"
-    shell: "module add gcc/7.4.0;  module add openblas/0.3.6-openmp; module add r/3.6.0; Rscript {homedir}Script/LoadAndGenData.R {input.count} {output} {input.parse_cds} "
+    shell: "module add gcc/7.4.0;  module add openblas/0.3.6-openmp; module add r/3.6.0; Rscript {homedir}Script/LoadAndGenData.R {input.count_2} {output} {input.parse_cds} "
 
 ##--------------------------------------##
 ## Make GLM fit (DT and flux)           ##
@@ -267,7 +267,7 @@ rule coepval:
 
 rule heatmap:
     input:
-        coe="Data/Fit/{sample}_coe_pval_{pair}.RData", size="Data/Mapping/{sample}_fragment_size.pdf"
+        coe="Data/Fit/{sample}_coe_pval_{pair}.RData", size_2="Data/Mapping/{sample}_fragment_size.pdf"
     output:
         "Data/Fit/{sample}_plot_{pair}.pdf"
     shell: "module add gcc/7.4.0; module add openblas/0.3.6-openmp; module add r/3.6.0; Rscript {homedir}Script/PlotHeatmaps.R {input.coe} {output}"
