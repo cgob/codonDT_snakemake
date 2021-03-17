@@ -16,6 +16,11 @@
         "time" : "02:00:00",
         "mem" : "20G"
     },
+     "downloadSRA" :
+    {
+        "time" : "02:00:00",
+        "mem" : "40G"
+    },
     "runstar" :
     {
         "time" : "03:00:00",
@@ -42,10 +47,16 @@
     },
     "makefit" :
     {
-        "time" : "08:00:00",
+        "time" : "12:00:00",
         "n" : 1,
         "mem" : "40G"
     },
+    "makefit_combined" :
+    {
+        "time" : "12:00:00",
+        "n" : 1,
+        "mem" : "40G"
+    }, 
     "coepval" :
     {
         "time" : "01:00:00",
