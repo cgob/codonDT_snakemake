@@ -96,7 +96,7 @@ rule run_index_star:
     input: fa = rules.download_ensembl_genome.output.genome,
        gtf = rules.download_ensembl_gtf.output.gtf
     output: genome = directory('references/' + spec + '/genome')
-    shell: "module load gcc/7.4.0; module load star/2.7.0e; mkdir {output.genome}; STAR --runMode genomeGenerate --runThreadN 12 --genomeFastaFiles {input.fa} --sjdbGTFfile {input.gtf} --genomeDir {output.genome}"
+    shell: "mkdir {output.genome}; STAR --runMode genomeGenerate --runThreadN 12 --genomeFastaFiles {input.fa} --sjdbGTFfile {input.gtf} --genomeDir {output.genome}"
 
 ##----------------------------------------------------------------##
 ## Download sra files from GEO  with fastq-dump and output fastq  ##
@@ -105,7 +105,7 @@ rule run_index_star:
 rule downloadSRA:
     output:
          "Data/Raw/{srr}.fastq"
-    shell: "module add sra-toolkit/2.9.6; fasterq-dump {wildcards.srr} -O Data/Raw/"
+    shell: "fasterq-dump {wildcards.srr} -O Data/Raw/"
 
 
 ##--------------------------------------##
@@ -143,7 +143,7 @@ rule runstar:
         "Data/Mapping/{sample}Aligned.sortedByCoord.out.bam"
     params: star_params = "--outSAMtype BAM SortedByCoordinate --seedSearchStartLmax 15 --limitBAMsortRAM 61000000000",
             star_adapter = config["adapter"]
-    shell: "module load gcc/7.4.0;  module load star/2.7.0e; STAR --genomeDir {input.genome} {params.star_params} --clip3pAdapterSeq {params.star_adapter} --outFileNamePrefix Data/Mapping/{wildcards.sample} --readFilesIn {input.fastq} --runThreadN 12"
+    shell: "STAR --genomeDir {input.genome} {params.star_params} --clip3pAdapterSeq {params.star_adapter} --outFileNamePrefix Data/Mapping/{wildcards.sample} --readFilesIn {input.fastq} --runThreadN 12"
 
 ##--------------------------------------##
 ##  BAM files indexing                  ##
@@ -154,7 +154,7 @@ rule samindex:
         "Data/Mapping/{sample}Aligned.sortedByCoord.out.bam"
     output:
         "Data/Mapping/{sample}Aligned.sortedByCoord.out.bam.bai"
-    shell: "module load gcc/7.4.0; module load samtools/1.9; samtools index {input}"
+    shell: "samtools index {input}"
 
 
 ##--------------------------------------##
@@ -166,7 +166,7 @@ rule sizedistrib:
         bam ="Data/Mapping/{sample}Aligned.sortedByCoord.out.bam", bam_index="Data/Mapping/{sample}Aligned.sortedByCoord.out.bam.bai"
     output:
         "Data/Mapping/{sample}_fragment_size.txt"
-    shell: "module load gcc/7.4.0; module load samtools/1.9; perl {homedir}Script/SizeDistrib.pl {input.bam} > {output}"
+    shell: "perl {homedir}Script/SizeDistrib.pl {input.bam} > {output}"
 
 
 ##--------------------------------------##
@@ -178,7 +178,7 @@ rule plotsizedistrib:
     	"Data/Mapping/{sample}_fragment_size.txt"
     output:
         "Data/Mapping/{sample}_fragment_size.pdf"
-    shell: "module add gcc/7.4.0;  module add openblas/0.3.6-openmp; module add r/3.6.0; Rscript {homedir}Script/PlotSizeDistrib.R {input} {output}"
+    shell: "Rscript {homedir}Script/PlotSizeDistrib.R {input} {output}"
 
 
 ##--------------------------------------##
@@ -193,7 +193,7 @@ rule countreads:
     params: L1 = config["L1"],
 	    L2 = config["L2"],
 	    STRAND = config["library"],
-    shell: "module load gcc/7.4.0; module load samtools/1.9; perl {homedir}Script/CountingFullSeq.pl {input.bam} {params.L1} {params.L2} {params.STRAND} {input.cds} {output}"
+    shell: "perl {homedir}Script/CountingFullSeq.pl {input.bam} {params.L1} {params.L2} {params.STRAND} {input.cds} {output}"
 
 ##--------------------------------------##
 ## Parse CDS for ref. in the fit        ##
@@ -204,7 +204,7 @@ rule parsecds:
         cds = rules.download_ensembl_cds.output.cds
     output:
         parse_cds = 'references/' + spec + '/ensembl.cds.parse.fa'
-    shell: "module load gcc/7.4.0; module load samtools/1.9; perl {homedir}Script/CdsAllSeq.pl {input} >  {output}"
+    shell: "perl {homedir}Script/CdsAllSeq.pl {input} >  {output}"
 
 ##--------------------------------------##
 ## Load count file and gen. matrix      ##
@@ -216,7 +216,7 @@ rule loaddata:
         parse_cds=rules.parsecds.output.parse_cds
     output:
         "Data/Counting/{sample}_ncount.RData"
-    shell: "module add gcc/7.4.0;  module add openblas/0.3.6-openmp; module add r/3.6.0; Rscript {homedir}Script/LoadAndGenData.R {input.count_2} {output} {input.parse_cds} "
+    shell: "Rscript {homedir}Script/LoadAndGenData.R {input.count_2} {output} {input.parse_cds} "
 
 ##--------------------------------------##
 ## Make GLM fit (DT and flux)           ##
@@ -230,7 +230,7 @@ rule makefit:
     params: codon = '1:40',
 	    mode = 'simple'
     wildcard_constraints: sample=".*RNA.*"
-    shell: "module add gcc/7.4.0; module add openblas/0.3.6-openmp; module add r/3.6.0; Rscript {homedir}Script/MakeFit.R {input} NULL {output.fit} {params.codon} {wildcards.pair} {params.mode}"
+    shell: "Rscript {homedir}Script/MakeFit.R {input} NULL {output.fit} {params.codon} {wildcards.pair} {params.mode}"
 
 
 ##------------------------------------------------------------------##
@@ -246,7 +246,7 @@ rule makefit_combined:
     params: codon = '1:40',
             mode = 'combined'
     wildcard_constraints: sample=".*RIBO.*"
-    shell: "module add gcc/7.4.0; module add openblas/0.3.6-openmp; module add r/3.6.0; Rscript {homedir}Script/MakeFit.R {input.ncount} {input.rnafit} {output.fit} {params.codon} {wildcards.pair} {params.mode}"
+    shell: "Rscript {homedir}Script/MakeFit.R {input.ncount} {input.rnafit} {output.fit} {params.codon} {wildcards.pair} {params.mode}"
 
 
 ##--------------------------------------##
@@ -258,7 +258,7 @@ rule coepval:
         "Data/Fit/{sample}_fit_{pair}.RData"
     output:
         "Data/Fit/{sample}_coe_pval_{pair}.RData"
-    shell: "module add gcc/7.4.0; module add openblas/0.3.6-openmp; module add r/3.6.0; Rscript {homedir}Script/CoeAndPVal.R {input} {output}"
+    shell: "Rscript {homedir}Script/CoeAndPVal.R {input} {output}"
 
 
 ##-----------------------------------------------##
@@ -270,6 +270,6 @@ rule heatmap:
         coe="Data/Fit/{sample}_coe_pval_{pair}.RData", size_2="Data/Mapping/{sample}_fragment_size.pdf"
     output:
         "Data/Fit/{sample}_plot_{pair}.pdf"
-    shell: "module add gcc/7.4.0; module add openblas/0.3.6-openmp; module add r/3.6.0; Rscript {homedir}Script/PlotHeatmaps.R {input.coe} {output}"
+    shell: "Rscript {homedir}Script/PlotHeatmaps.R {input.coe} {output}"
 
 
