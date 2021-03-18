@@ -1,4 +1,4 @@
-# codonDT_snakemake
+# Ribo-DT
 Snakemake pipeline to infer single-codon and codon-pair dwell times as well as gene flux from ribosome profiling data using generalized linear model (GLM) with negative binomial noise (Gobet et al., PNAS, 2020). ! Pipeline under development for generalization to any kind of ribosome profiling datasets !
 
 ## Pipeline
