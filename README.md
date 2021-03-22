@@ -8,7 +8,7 @@
 ## Ribo-DT pipeline overview
 
 1. Download the genome, cds and gtf files from [`ENSEMBL`](https://www.ensembl.org/index.html) according to the species defined in the configuration file (`config.yaml`).  
-2. Build genome index using [`STAR`] (https://github.com/alexdobin/STAR).
+2. Build genome index using [`STAR`](https://github.com/alexdobin/STAR).
 3. Download SRA run files (SRR token) specified in the sample spreadsheet from GEO database.
 4. Convert SRA to FASTQ files.
 5. Merge FASTQ files run from the sample according to the the sample spreadsheet definition.
