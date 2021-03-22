@@ -25,10 +25,11 @@ Please note that when RNA-seq and Ribo-seq are provided for the same sample, RNA
 
 ## Running the Ribo-DT pipeline
 
-**Prerequisites**
+**Prerequisites**  
 The current workflow is designed to run on high computing cluster with [`slurm`](https://slurm.schedmd.com/) workload manager but `running_command.sh` can be modified to match your cluster configuration. All the required packages and softwares are installed via the [`conda`](https://conda.io/docs/) environment file (`sm_codonDT_2.yaml`).
 
-**Clone the github repository and change directory**
+**Clone the github repository and change directory**  
+Clone this git repository to the location where you want to run your analysis 
 ```
 https://github.com/cgob/codonDT_snakemake.git
 cd codonDT_snakemake
@@ -36,7 +37,7 @@ cd codonDT_snakemake
 **Download and install conda (select an appropriate version for your operating system)**
 ```
 wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
-bash Miniconda3-latest-Linux-x86_64.sh .
+bash Miniconda3-latest-Linux-x86_64.sh
 ```
 Restart your terminal
 
@@ -45,15 +46,26 @@ This step install snakemake, all the required softwares, librairies, and depende
 ```
 conda activate sm_codonDT_2
 ```
-**Modify the configuration file**  
+**Sample file**  
+Edit the sample file (`samples_Yeast.tsv` or your own file).  
+1. A minimal header with the fields "SAMPLES", "Type" and "SRR" is required.  
+2. Fill the sample names, type (RIBO or RNA) and GEO run accession number. To do so, extract the [`GEO`] (https://www.ncbi.nlm.nih.gov/geo/) accession number of the study of interest. Click on run selector, select your samples of interest and download the metadata text file. This file can be edited to meet the sample file requirements.
+
+
+**Configuration file**  
 Edit the configuration file (`config.yaml`).  
-Set `workdir` with the path of the output and working files.  
-Set `homedir` with the path of the Snakefile directory.  
-Set `species` with the proper species for your dataset (Mouse, Human, Yeast).  
-Set `adapter` with the 3'-adapter used during library preparation of your dataset.
-Set `L1` with the read size lower bound ( `L1` > reads > `L2` are kept for the fit).  
-Set `L2` with the read size upper bound.  
-Set `library` with 'pos_neg' or 'neg_pos' depending on the strandness configuration of your library preparation.  
-Set `samples` with the tab-delimited file describing your samples.
+1. Set `workdir` with the path of the output and working files.  
+2. Set `homedir` with the path of the Snakefile directory.  
+3. Set `species` with the proper species for your dataset (Mouse, Human, Yeast).  
+4. Set `adapter` with the 3'-adapter used during library preparation of your dataset.
+5. Set `L1` with the read size lower bound ( `L1` > reads > `L2` are kept for the fit).  
+6. Set `L2` with the read size upper bound.  
+7. Set `library` with 'pos_neg' or 'neg_pos' depending on the strandness configuration of your library preparation.  
+8. Set `samples` with the tab-delimited file defined above describing your samples.
+
+**Running the pipeline**
+```
+bash running_command.sh
+```
 ## Author
 Cédric Gobet
