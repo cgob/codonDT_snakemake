@@ -31,7 +31,7 @@ The current workflow is designed to run on high computing cluster with [`slurm`]
 **Clone the github repository and change directory**  
 Clone this git repository to the location where you want to run your analysis 
 ```
-https://github.com/cgob/codonDT_snakemake.git
+git clone https://github.com/cgob/codonDT_snakemake.git
 cd codonDT_snakemake
 ```
 **Download and install conda (select an appropriate version for your operating system)**
