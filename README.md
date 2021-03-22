@@ -44,6 +44,7 @@ Restart your terminal
 **Activate conda environment**  
 This step install snakemake, all the required softwares, librairies, and dependencies in a [`conda`](https://conda.io/docs/) environment to run the workflow.
 ```
+conda env create -f sm_codonDT_2.yaml
 conda activate sm_codonDT_2
 ```
 **Sample file**  
