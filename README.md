@@ -1,5 +1,4 @@
 # Ribo-DT <img src="logo.png" width="200" align="right" />
-![snakemake-run]
 
 **Ribo-DT** is a snakemake pipeline to infer single-codon and codon-pair dwell times as well as gene flux from ribosome profiling data using generalized linear model (GLM) with negative binomial noise mode (Gobet et al., PNAS, 2020).
 
