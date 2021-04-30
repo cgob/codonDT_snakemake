@@ -1,4 +1,4 @@
-name: sm_codonDT_2
+name: Ribo_DT
 channels:
   - conda-forge
   - bioconda
