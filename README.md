@@ -26,7 +26,7 @@ Please note that when RNA-seq and Ribo-seq are provided for the same sample, RNA
 ## Running the Ribo-DT pipeline
 
 **Prerequisites**  
-The current workflow is designed to run on high computing cluster with [`slurm`](https://slurm.schedmd.com/) workload manager but `running_command.sh` can be modified to match your cluster configuration. All the required packages and softwares are installed via the [`conda`](https://conda.io/docs/) environment file (`sm_codonDT_2.yaml`).
+The current workflow is designed to run on high computing cluster with [`slurm`](https://slurm.schedmd.com/) workload manager but `running_command.sh` can be modified to match your cluster configuration. All the required packages and softwares are installed via the [`conda`](https://conda.io/docs/) environment file (`Ribo_DT.yaml`).
 
 **Clone the github repository and change directory**  
 Clone this git repository to the location where you want to run your analysis 
@@ -44,8 +44,8 @@ Restart your terminal
 **Activate conda environment**  
 This step install snakemake, all the required softwares, librairies, and dependencies in a [`conda`](https://conda.io/docs/) environment to run the workflow.
 ```
-conda env create -f sm_codonDT_2.yaml
-conda activate sm_codonDT_2
+conda env create -f Ribo_DT.yaml
+conda activate Ribo_DT
 ```
 **Sample file**  
 Edit the sample file (`samples_Yeast.tsv` or your own file).  
