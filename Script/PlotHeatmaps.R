@@ -7,12 +7,14 @@ require(data.table)
 require(gtools)
 require(grid)
 require(gridExtra)
-
+require(reshape2)
 #########################
 
 args = commandArgs(trailingOnly=TRUE)
-files=args[1]
-pdf.out=args[2]
+files = args[1]
+pdf.out = args[2]
+pval_thresh = as.numeric(args[3])
+pos_A = as.numeric(args[4])
 
 ##########################
 
@@ -54,7 +56,7 @@ plot_heatmap.single=function(dff.c,margin,titi,colv){
 
 #############################################
 
-plot_heatmap.pair=function(dff.c,titi,site.1,site.2,clust.1,clust.2){
+plot_heatmap.pair=function(dff.c, titi, site.1, site.2, clust.1, clust.2){
   
   dff.c.2=dff.c
   rownames(dff.c.2)=cod.aa[rownames(dff.c),'comb.2']
@@ -117,7 +119,7 @@ load_files=function(files,nb){
 }
 
 
-plot_heatmaps=function(fit,i,site.1,site.2){
+plot_heatmaps=function(fit, i, site.1, site.2, pval_thresh, pos_A){
   
   
   SI.c=fit$SI.c;SI.p=fit$SI.p;PA.c=fit$PA.c;PA.p=fit$PA.p;G.c=fit$G.c;G.p=fit$G.p
@@ -126,16 +128,17 @@ plot_heatmaps=function(fit,i,site.1,site.2){
   DF.SI.c=matrix(SI.c[,1],61,nrow(SI.c)/61)
   
   rownames(DF.SI.c)=change_cc2aa(sapply(strsplit(rownames(SI.c)[grep('X24',rownames(SI.c))],"X24"),"[[",2))
-  colnames(DF.SI.c)=c(seq(-23,-1,1),c('E','P','A'),3:16)
-  
-  DF.SI.c[DF.SI.p>=0.05]=0
+ 
+  colnames(DF.SI.c)=c(seq(-17 - pos_A,-1,1),c('E','P','A'),3:(22-pos_A))
+
+  DF.SI.c[DF.SI.p>pval_thresh]=0
   
   plot_heatmap.single(DF.SI.c,c(5,7),i,T)
   plot_heatmap.single(DF.SI.c,c(5,7),i,F)
   plot_heatmap.single(DF.SI.c[,grep("E|P|A",colnames(DF.SI.c))],c(32,5),i,T)
   plot_heatmap.single(DF.SI.c[,grep("E|P|A",colnames(DF.SI.c))],c(32,5),i,F)
   
-  DD.s.m=melt(DF.SI.c)
+  DD.s.m=reshape2::melt(DF.SI.c)
   DD.s.m$amino =cod.aa[as.character(DD.s.m[,1]),'amino_acid']
   DD.s.m$codon =cod.aa[as.character(DD.s.m[,1]),'codon']
   DD.s.m$fit=extract_x(DD.s.m$Var2,"_",1)
@@ -162,7 +165,7 @@ plot_heatmaps=function(fit,i,site.1,site.2){
   
   DF.PA.p=data.frame(A=A.site,P=P.site,z=PA.p[,1])
   DF.PA.p=reshape2::acast(DF.PA.p,P~A,value.var="z")
-  DF.PA.c[DF.PA.p>=0.05]=0
+  DF.PA.c[DF.PA.p>pval_thresh]=0
 
   if(!all(DF.PA.c==0)){  
   plot_heatmap.pair(DF.PA.c,i,"site 1","site 2",TRUE,TRUE)
@@ -187,7 +190,7 @@ fit.1=load_files(files)
 DAT.gen=generate_data(fit.1)
 
 pdf(pdf.out)
-plot_heatmaps(DAT.gen,'test','1','2')
+plot_heatmaps(DAT.gen,'','1','2', pval_thresh, pos_A)
 dev.off()
   
 

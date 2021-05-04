@@ -3,7 +3,7 @@
 
 
 args = commandArgs(trailingOnly=TRUE)
-LoadAndGenData = function(input_file,output_file,cds_path){
+LoadAndGenData = function(input_file,output_file,cds_path, filter_1){
   ########  
   require("methods")
   require("MatrixModels")
@@ -12,8 +12,8 @@ LoadAndGenData = function(input_file,output_file,cds_path){
   require('data.table')
   require('stringi') 
   #######
-  
- ############# Generate RData file with every cds position if the file doesn't exist ########################
+  filter_1 = as.numeric(filter_1)
+  ############ Generate RData file with every cds position if the file doesn't exist ########################
   if(!file.exists(paste0(cds_path,".RData"))){
   cod= fread(cds_path,colClasses=c('character','character'),stringsAsFactors=F,header=F) # Load CDS 
   cod=as.data.frame(cod)
@@ -69,7 +69,6 @@ LoadAndGenData = function(input_file,output_file,cds_path){
 ##################### Selection of genes and CDS positions stastifying our criterion  ################################################
   ss=split(1:nrow(ncount),ncount$V1)
   gg=sapply(ss,function(x) sum(ncount$rfp[x]))
-  ncount=ncount[ncount$V1%in%names(gg[gg>100]),] 
   
   names(ncount)[1]='gene'
   names(ncount)[42]='count.rfp'
@@ -85,7 +84,7 @@ LoadAndGenData = function(input_file,output_file,cds_path){
   
   ss=split(1:nrow(ncount),ncount$gene)
   gg=sapply(ss,function(x) sum(ncount$count.rfp[x]))
-  ncount=ncount[ncount$gene%in%names(gg[gg>100]),] # Genes with less than 100 reads are removed
+  ncount=ncount[ncount$gene%in%names(gg[gg> filter_1]),] # Genes with less than 100 reads are removed
   rm(ncount.nn)
   
   for(i in 1:40){
@@ -96,5 +95,5 @@ LoadAndGenData = function(input_file,output_file,cds_path){
 }
 ###################################################################################################################################
 
-LoadAndGenData(args[1],args[2],args[3])
+LoadAndGenData(args[1], args[2], args[3], args[4] )
 

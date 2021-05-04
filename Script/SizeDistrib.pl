@@ -3,7 +3,7 @@ use warnings;
 
 my $f1= shift;
 my %length;
-open BAM,"samtools view $f1 |";
+open BAM, "samtools view $f1 |";
 my %reads;
 
 while(<BAM>){

@@ -3,11 +3,11 @@
 ###########################################################################
 ## Author: Gobet Cédric
 ## Email: cedric.gobet@epfl.ch
-## Date: 25/03/2019
+## Date: 03/05/2021
 ## 
-## The purpose of this pipeline is to infer gene flux and codon dwell times
+## The purpose of the Ribo-DT is to infer gene flux and codon dwell times
 # from ribosome profiling data.
-## The pipeline is still in active development.
+## The pipeline is under continuous development.
 ###########################################################################
 
 
@@ -48,12 +48,19 @@ def get_rna_from_ribo(wildcards):
     else:
         return "Data/Fit/" + sample_rna + "_fit_" + str(wildcards.pair) + ".RData"
 
+### change pair in function of A site position
+
+if config['pos_A'] == "6":
+	pair_pos = ['24:25','25:26','24:26']
+else:
+	pair_pos = ['23:24', '24:25', '23:25']
+
 ##--------------------------------------##
 ##  Target rule                         ##
 ##--------------------------------------##
 rule all:
      input:
-        expand("Data/Fit/{sample}_plot_{pair}.pdf", sample=SAMPLES , pair=["24:25","25:26","23:24"])
+        expand("Data/Fit/{sample}_plot_{pair}.pdf", sample=SAMPLES , pair= pair_pos)
 
 ##--------------------------------------##
 ##  Download gtf from Ensembl           ##
@@ -106,19 +113,6 @@ rule downloadSRA:
     output:
          "Data/Raw/{srr}.fastq"
     shell: "fasterq-dump {wildcards.srr} -O Data/Raw/"
-
-
-##--------------------------------------##
-## Trimm Fastq in case of UMI           ##
-##--------------------------------------##
-
-#rule trimfastq:
- #   input:
-  #      ""
-   # output:
-#	""
- #   params: adapter = config["adapter"]
-  #  shell: "fastx_clipper -Q33 -a {params.adapter}  -l 25  -i {input} -o {output}";
 
 
 ##--------------------------------------##
@@ -216,7 +210,8 @@ rule loaddata:
         parse_cds=rules.parsecds.output.parse_cds
     output:
         "Data/Counting/{sample}_ncount.RData"
-    shell: "Rscript {homedir}Script/LoadAndGenData.R {input.count_2} {output} {input.parse_cds} "
+    params: filter_1 = config['filter_1']
+    shell: "Rscript {homedir}Script/LoadAndGenData.R {input.count_2} {output} {input.parse_cds} {params.filter_1}"
 
 ##--------------------------------------##
 ## Make GLM fit (DT and flux)           ##
@@ -242,7 +237,7 @@ rule makefit_combined:
         ncount="Data/Counting/{sample}_ncount.RData",
 	rnafit= get_rna_from_ribo
     output:
-        fit="Data/Fit/{sample}_fit_{pair}.RData", pred="Data/Fit/{sample}_fit_{pair}.RData.pred", cor="Data/Fit/{sample}_fit_{pair}.RData.cor"
+        fit="Data/Fit/{sample}_fit_{pair}.RData"
     params: codon = '1:40',
             mode = 'combined'
     wildcard_constraints: sample=".*RIBO.*"
@@ -267,9 +262,11 @@ rule coepval:
 
 rule heatmap:
     input:
-        coe="Data/Fit/{sample}_coe_pval_{pair}.RData", size_2="Data/Mapping/{sample}_fragment_size.pdf"
+        coe="Data/Fit/{sample}_coe_pval_{pair}.RData", size_2="Data/Mapping/{sample}_fragment_size.pdf"    
     output:
         "Data/Fit/{sample}_plot_{pair}.pdf"
-    shell: "Rscript {homedir}Script/PlotHeatmaps.R {input.coe} {output}"
+    params: pval_thresh = config['filter_2'],
+            pos_A = config['pos_A']
+    shell: "Rscript {homedir}Script/PlotHeatmaps.R {input.coe} {output} {params.pval_thresh} {params.pos_A}"
 
 

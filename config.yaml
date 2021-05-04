@@ -1,6 +1,6 @@
 
 workdir: "/scratch/cgobet/snake_codon/" # Working directory to be defined by user 
-homedir: "/home/cgobet/CODON_FINAL/SNAKE_FINAL/" # Home directory to be defined by user 
+homedir: "/home/cgobet/SNAKE_METHODS/codonDT_snakemake/" # Home directory to be defined by user 
 #Species (Mouse, Yeast or Human)
 species: Yeast # Species to be defined by user 
 #URL for Ensembls sequence files for Mouse, Human and Yeast (S. cer.)  
@@ -19,18 +19,19 @@ Yeast:
   gtf: "ftp://ftp.ensembl.org/pub/release-95/gtf/saccharomyces_cerevisiae/Saccharomyces_cerevisiae.R64-1-1.95.gtf.gz"
   genome: "ftp://ftp.ensembl.org/pub/release-95/fasta/saccharomyces_cerevisiae/dna/Saccharomyces_cerevisiae.R64-1-1.dna.toplevel.fa.gz"
  
-# path tMouseple sheet (TSV format, columns: sample, condition, SRR ...)
-samples: samples_Yeast.tsv # to be defined by user
+# path to sample spreadsheet (TSV format, columns: SAMPLES, Type, SRR)
+samples: samples.tsv # to be defined by user
 # the sequencing adapter
-adapter: CTGTAGGCACCATCAAT # AGATCGGAAGAGCAC #TGGAATTCTCGGGTGCCAAGG  #AAAAA  ##ATCTCGTATGCCGTCTTCTGCTTG # TGGAATTCTCGGGTGCCAAGG
+adapter: TGGAATTCTCGGGTGCCAAGG  # 3' adapter to trimm
 # lower bound read size
-L1: "24"
+L1: "26"
 # upper bound read size
-L2: "34"
+L2: "36"
 # Strandness of the the library (pos_neg or neg_pos)
 library: "pos_neg"
-# standard library preparation or UMI adapters (standard or UMI)
-library_type: "standard"
-#UMI individual length
-UMI_length: 4 
-
+# Filter threshold for the minimum number of reads per gene
+filter_1: "100"
+# Filter threshold for the p-value. Dwell times with p-value smaller than the threshold are plotted.
+filter_2: "0.05"
+# position of the A site from the 5'end of the read (set to 5 or 6)
+pos_A: "6"
