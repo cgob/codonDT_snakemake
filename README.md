@@ -21,7 +21,7 @@
 12. Compute coefficients p-value and rescale the coefficients according to our convention (see method section in the paper).
 13. Plot single and codon-pair dwell time heatmaps as well as fragment size distribution.
 
-Please note that when RNA-seq and Ribo-seq are provided for the same sample, RNA-Seq is fitted first and used as an GLM offset in the Ribo-seq fit to reduce library preparation bias. 
+Note that when RNA-seq and Ribo-seq are provided for the same sample, RNA-Seq is fitted first and used as an GLM offset in the Ribo-seq fit to reduce library preparation bias. 
 
 ## Running the Ribo-DT pipeline
 
@@ -51,18 +51,22 @@ conda activate Ribo_DT
 Edit the sample file (`samples_Yeast.tsv` or your own file).  
 1. A minimal header with the fields "SAMPLES", "Type" and "SRR" is required.  
 2. Fill the sample names, type (**RIBO** for ribosome profiling dataset or **RNA** for rna-seq dataset) and GEO run accession number. To do so, extract the [`GEO`](https://www.ncbi.nlm.nih.gov/geo/) accession number of the study of interest. Click on run selector, select your samples of interest and download the metadata text file. This file can be edited to meet the sample file requirements.
-
+3. In case fastq files are directly provided, files names must be specified under the "SRR" field without the ".fastq" extension and placed in the "/workdir/data/raw/" output folder.
 
 **Configuration file**  
-Edit the configuration file (`config.yaml`).  
-1. Set `workdir` with the path of the output and working files.  
-2. Set `homedir` with the path of the Snakefile directory.  
-3. Set `species` with the proper species for your dataset (Mouse, Human, Yeast).  
-4. Set `adapter` with the 3'-adapter used during library preparation of your dataset.
-5. Set `L1` with the read size lower bound ( `L1` > reads > `L2` are kept for the fit).  
-6. Set `L2` with the read size upper bound.  
-7. Set `library` with 'pos_neg' or 'neg_pos' depending on the strandness configuration of your library preparation.  
-8. Set `samples` with the tab-delimited file defined above describing your samples.
+Edit the configuration file (`config.yaml`). Set: 
+1. `workdir` with the path of the output and working files.  
+2. `homedir` with the path of the Snakefile directory.  
+3. `species` with the proper species for your dataset (Mouse, Human, Yeast).  
+4. `adapter` with the 3'-adapter used during library preparation of your dataset.
+5. `L1` with the read size lower bound ( `L1` > reads > `L2` are kept for the fit).  
+6. `L2` with the read size upper bound.  
+7. `library` with 'pos_neg' or 'neg_pos' depending on the strandness configuration of your library preparation.  
+8. `samples` with the tab-delimited file defined above describing your samples.
+9. `filter_1` with filter threshold for the minimum number of reads per gene.
+10. `filter_2` with p-value threshold for dwell times in the heatmap representation.
+11. `pos_A` with the position (in codon) of the A site relative to 5-end of the read.
+
 
 **Running the pipeline**
 ```
