@@ -48,7 +48,7 @@ conda env create -f Ribo_DT.yaml
 conda activate Ribo_DT
 ```
 **Sample file**  
-Edit the sample file (`samples_Yeast.tsv` or your own file).  
+Edit the sample file (`samples.tsv` or your own file).  
 1. A minimal header with the fields "SAMPLES", "Type" and "SRR" is required.  
 2. Fill the sample names, type (**RIBO** for ribosome profiling dataset or **RNA** for rna-seq dataset) and GEO run accession number. To do so, extract the [`GEO`](https://www.ncbi.nlm.nih.gov/geo/) accession number of the study of interest. Click on run selector, select your samples of interest and download the metadata text file. This file can be edited to meet the sample file requirements.
 3. In case fastq files are directly provided, files names must be specified under the "SRR" field without the ".fastq" extension and placed in the "/workdir/data/raw/" output folder.
