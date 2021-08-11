@@ -109,7 +109,7 @@ sub load_cds{
 						 #print("$master{$k}{$k2}{'seq'}\t$rseq\n");
 						 my $posi = $-[0];
 						 $read_tot{$read[0]}=1;	
-					         my $posi2=0;	
+					         my $posi2=$posi;	
 							if(($posi + 1) % 3 == 0){ # Align the read in the right frame
 							 $rseq = substr($rseq, 1);
 							 $posi2=$posi+1;
