@@ -1,5 +1,6 @@
 
 workdir: "/scratch/cgobet/snake_codon/" # Working directory to be defined by user 
+refdir: "/scratch/cgobet/snake_codon/references/" # directory for the genome reference files, to be defined by the user
 homedir: "/home/cgobet/SNAKE_METHODS/codonDT_snakemake/" # Home directory to be defined by user 
 #Species (Mouse, Yeast or Human)
 species: Yeast # Species to be defined by user 
@@ -26,12 +27,13 @@ adapter: TGGAATTCTCGGGTGCCAAGG  # 3' adapter to trimm
 # lower bound read size
 L1: "26"
 # upper bound read size
-L2: "36"
+L2: "35"
 # Strandness of the the library (pos_neg or neg_pos)
 library: "pos_neg"
 # Filter threshold for the minimum number of reads per gene
 filter_1: "100"
 # Filter threshold for the p-value. Dwell times with p-value smaller than the threshold are plotted.
-filter_2: "0.05"
-# position of the A site from the 5'end of the read (set to 5 or 6)
-pos_A: "6"
+filter_2: "1"
+# 5' or 3' end to compute A site from the pile-up plot at the start codon (5p or 3p)
+A_site_end: "5p" 
+
