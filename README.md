@@ -14,12 +14,14 @@
 5. Merge FASTQ files run from the sample according to the the sample spreadsheet definition.
 6. STAR alignment to genome with inline adapter clipping (defined in the configuration file).
 7. Bam files indexing.
-8. Read counts and cds positions are retrieved.
-9. Parse the downloaded cds file to be used as a reference in the GLM fit.
-10. Load the parsed and read count files to generate the matrix for the fit.
-11. Gene and position filtering. Fit the generalized linear model with the `glm4` function.
-12. Compute coefficients p-value and rescale the coefficients according to our convention (see method section in the paper).
-13. Plot single and codon-pair dwell time heatmaps as well as fragment size distribution.
+8. Positions of the 5’-end or 3’-end of the reads at the gene start codon are computed genome-wide for each read size in each frame. Respective density plots are reported for further verification by the user.
+9. Read counts and cds positions are retrieved. The 5’- or 3’-end position of the read is shifted according to the A-site offset specified in the file computed at step 8.
+10. Parse the downloaded cds file to be used as a reference in the GLM fit.
+11. Load the parsed and read count files to generate the matrix for the fit.
+12. Gene and position filtering. Fit the generalized linear model with the `glm4` function.
+13. Compute coefficients p-value and rescale the coefficients according to our convention (see method section in the paper).
+14. Plot single and codon-pair dwell time heatmaps as well as fragment size distribution.
+15. Output tables with p-values, standard errors, t-values and p-values.
 
 Note that when RNA-seq and Ribo-seq are provided for the same sample, RNA-Seq is fitted first and used as an GLM offset in the Ribo-seq fit to reduce library preparation bias. 
 
@@ -57,20 +59,26 @@ Edit the sample file (`samples.tsv` or your own file).
 Edit the configuration file (`config.yaml`). Set: 
 1. `workdir` with the path of the output and working files.  
 2. `homedir` with the path of the Snakefile directory.  
-3. `species` with the proper species for your dataset (Mouse, Human, Yeast).  
-4. `adapter` with the 3'-adapter used during library preparation of your dataset.
-5. `L1` with the read size lower bound ( `L1` > reads > `L2` are kept for the fit).  
-6. `L2` with the read size upper bound.  
-7. `library` with 'pos_neg' or 'neg_pos' depending on the strandness configuration of your library preparation.  
-8. `samples` with the tab-delimited file defined above describing your samples.
-9. `filter_1` with filter threshold for the minimum number of reads per gene.
-10. `filter_2` with p-value threshold for dwell times in the heatmap representation.
-11. `pos_A` with the position (in codon) of the A site relative to 5-end of the read.
-
+3. `refdir` with the path of the reference genome directory.
+4. `species` with the proper species for your dataset (Mouse, Human, Yeast).  
+5. `adapter` with the 3'-adapter used during library preparation of your dataset.
+6. `L1` with the read size lower bound ( `L1` > reads > `L2` are kept for the fit).  
+7. `L2` with the read size upper bound.  
+8. `library` with 'pos_neg' or 'neg_pos' depending on the strandness configuration of your library preparation.  
+9. `samples` with the tab-delimited file defined above describing your samples.
+10. `filter_1` with filter threshold for the minimum number of reads per gene.
+11. `filter_2` with p-value threshold for dwell times in the heatmap representation.
+12. A_site_end with `5p` or `3p` defining which read ends to use to compute A site offsets from the pile-up densities at the start codons.
 
 **Running the pipeline**
 ```
 bash running_command.sh
 ```
+**Running the pipeline on a personal computer**
+```
+snakemake --cores N
+```
+with N the number of CPU cores to be used at the same time. 
+
 ## Author
 Cédric Gobet
