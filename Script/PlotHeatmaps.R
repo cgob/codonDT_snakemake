@@ -14,7 +14,6 @@ args = commandArgs(trailingOnly=TRUE)
 files = args[1]
 pdf.out = args[2]
 pval_thresh = as.numeric(args[3])
-pos_A = as.numeric(args[4])
 
 ##########################
 
@@ -119,7 +118,7 @@ load_files=function(files,nb){
 }
 
 
-plot_heatmaps=function(fit, i, site.1, site.2, pval_thresh, pos_A){
+plot_heatmaps=function(fit, i, site.1, site.2, pval_thresh){
   
   
   SI.c=fit$SI.c;SI.p=fit$SI.p;PA.c=fit$PA.c;PA.p=fit$PA.p;G.c=fit$G.c;G.p=fit$G.p
@@ -129,7 +128,7 @@ plot_heatmaps=function(fit, i, site.1, site.2, pval_thresh, pos_A){
   
   rownames(DF.SI.c)=change_cc2aa(sapply(strsplit(rownames(SI.c)[grep('X24',rownames(SI.c))],"X24"),"[[",2))
  
-  colnames(DF.SI.c)=c(seq(-17 - pos_A,-1,1),c('E','P','A'),3:(22-pos_A))
+  colnames(DF.SI.c)=c(seq(-23,-1,1),c('E','P','A'),3:16)
 
   DF.SI.c[DF.SI.p>pval_thresh]=0
   
@@ -168,7 +167,8 @@ plot_heatmaps=function(fit, i, site.1, site.2, pval_thresh, pos_A){
   DF.PA.c[DF.PA.p>pval_thresh]=0
 
   if(!all(DF.PA.c==0)){  
-  plot_heatmap.pair(DF.PA.c,i,"site 1","site 2",TRUE,TRUE)
+  plot_heatmap.pair(DF.PA.c, i, "site 2 in pair 1:2", "site 1 in pair 1:2", TRUE, TRUE)
+  plot_heatmap.pair(DF.PA.c, i, "site 2 in pair 1:2", "site 1 in pair 1:2", FALSE, FALSE)
   }
 }
 ################################################
@@ -190,7 +190,7 @@ fit.1=load_files(files)
 DAT.gen=generate_data(fit.1)
 
 pdf(pdf.out)
-plot_heatmaps(DAT.gen,'','1','2', pval_thresh, pos_A)
+plot_heatmaps(DAT.gen,'','1','2', pval_thresh)
 dev.off()
   
 
