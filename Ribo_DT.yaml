@@ -17,7 +17,7 @@ dependencies:
   - r-gtools
   - r-rmarkdown
   - r-mass
-  - r-matrix
+  - r-matrix=1.3_2
   - r-matrixmodels
   - r-plyr
   - r-rcolorbrewer
