@@ -134,6 +134,7 @@ close $fh;
 							 $frame='1';
 		                                        }
 							my $shift_pos;
+							
 							if($a_site_end eq '5p'){
 							 $shift_pos = $posi2 + $As_pos{$length}{$frame} - 15 - 60
 							}
@@ -145,11 +146,11 @@ close $fh;
 						 
 							if(exists($codon{$rseq_2})){
 						 	 $codon{$rseq_2}++;
-						 	 $codon_pos{$rseq_2}{'pos'}=$posi2;
+						 	 $codon_pos{$rseq_2}{'pos'}=$posi2 + $As_pos{$length}{$frame};
 							}else{
 						 	 $codon{$rseq_2}=1;
 						 	 $codon_pos{$rseq_2}{'trans'}=  $k2;	
-						 	 $codon_pos{$rseq_2}{'pos'}=  $posi2;	
+						 	 $codon_pos{$rseq_2}{'pos'}=  $posi2 + $As_pos{$length}{$frame};	
 							}
 						}
 					
