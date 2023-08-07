@@ -143,7 +143,7 @@ close $fh;
 							}
 
 					  	 my $rseq_2= substr($master{$k}{$k2}{'seq'}, $shift_pos, 120);
-						 3333
+						 
 							if(exists($codon{$rseq_2})){
 						 	 $codon{$rseq_2}++;
 						 	 $codon_pos{$rseq_2}{'pos'}=$posi2 + $As_pos{$length}{$frame};
