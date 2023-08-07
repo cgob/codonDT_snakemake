@@ -134,16 +134,16 @@ close $fh;
 							 $frame='1';
 		                                        }
 							my $shift_pos;
-							
+
 							if($a_site_end eq '5p'){
-							 $shift_pos = $posi2 + $As_pos{$length}{$frame} - 15 - 60
+							 $shift_pos = $posi2 + $As_pos{$length}{$frame} - 15 - 60;
 							}
 							else{
-							 $shift_pos = $posi2 + $l - $As_pos{$length}{$frame} - 15 - 60
+							 $shift_pos = $posi2 + $l - $As_pos{$length}{$frame} - 15 - 60;
 							}
 
 					  	 my $rseq_2= substr($master{$k}{$k2}{'seq'}, $shift_pos, 120);
-						 
+						 3333
 							if(exists($codon{$rseq_2})){
 						 	 $codon{$rseq_2}++;
 						 	 $codon_pos{$rseq_2}{'pos'}=$posi2 + $As_pos{$length}{$frame};
