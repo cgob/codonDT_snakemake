@@ -35,9 +35,9 @@ par(mfrow=c(2,2),pty='s')
 for(pos in l){
   plot(1:201, sum_pos.l[,pos], xlim=c(70,130), main=pos, xaxt='n', lty='blank', cex=0); abline(v=101, col='grey')
   axis(at=1:201, labels=rownames(sum_pos.l), side=1, cex.axis=0.4)
-  lines(seq(1,nrow(sum_pos.l),3), sum_pos.l[seq(1,nrow(sum_pos.l),3), pos], col='darkred', type='o')
-  lines(seq(2,nrow(sum_pos.l),3), sum_pos.l[seq(2,nrow(sum_pos.l),3), pos], col='darkblue', type='o')
-  lines(seq(3,nrow(sum_pos.l),3), sum_pos.l[seq(3,nrow(sum_pos.l),3), pos], col='darkgreen', type='o')
+  lines(seq(1,nrow(sum_pos.l),3), sum_pos.l[seq(1,nrow(sum_pos.l),3), pos], col='darkred', type='h')
+  lines(seq(2,nrow(sum_pos.l),3), sum_pos.l[seq(2,nrow(sum_pos.l),3), pos], col='darkblue', type='h')
+  lines(seq(3,nrow(sum_pos.l),3), sum_pos.l[seq(3,nrow(sum_pos.l),3), pos], col='darkgreen', type='h')
 }
 dev.off()
 
