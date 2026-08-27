@@ -12,16 +12,17 @@
 3. Download SRA run files (SRR token) specified in the sample spreadsheet from GEO database.
 4. Convert SRA to FASTQ files.
 5. Merge FASTQ files run from the sample according to the the sample spreadsheet definition.
-6. STAR alignment to genome with inline adapter clipping (defined in the configuration file).
-7. Bam files indexing.
-8. Positions of the 5’-end or 3’-end of the reads at the gene start codon are computed genome-wide for each read size in each frame. Respective density plots are reported for further verification by the user.
-9. Read counts and cds positions are retrieved. The 5’- or 3’-end position of the read is shifted according to the A-site offset specified in the file computed at step 8.
-10. Parse the downloaded cds file to be used as a reference in the GLM fit.
-11. Load the parsed and read count files to generate the matrix for the fit.
-12. Gene and position filtering. Fit the generalized linear model with the `glm4` function.
-13. Compute coefficients p-value and rescale the coefficients according to our convention (see method section in the paper).
-14. Plot single and codon-pair dwell time heatmaps as well as fragment size distribution.
-15. Output tables with p-values, standard errors, t-values and p-values.
+6. Optionally (`umi: enabled: true`), trim the 3'-adapter with `cutadapt` and remove PCR duplicates using the UMIs carried at both read ends, then strip the UMIs.
+7. STAR alignment to genome with inline adapter clipping (defined in the configuration file).
+8. Bam files indexing.
+9. Positions of the 5’-end or 3’-end of the reads at the gene start codon are computed genome-wide for each read size in each frame. Respective density plots are reported for further verification by the user.
+10. Read counts and cds positions are retrieved. The 5’- or 3’-end position of the read is shifted according to the A-site offset specified in the file computed at step 9.
+11. Parse the downloaded cds file to be used as a reference in the GLM fit.
+12. Load the parsed and read count files to generate the matrix for the fit.
+13. Gene and position filtering. Fit the generalized linear model with the `glm4` function.
+14. Compute coefficients p-value and rescale the coefficients according to our convention (see method section in the paper).
+15. Plot single and codon-pair dwell time heatmaps as well as fragment size distribution.
+16. Output tables with p-values, standard errors, t-values and p-values.
 
 Note that when RNA-seq and Ribo-seq are provided for the same sample, RNA-Seq is fitted first and used as an GLM offset in the Ribo-seq fit to reduce library preparation bias. 
 
@@ -69,6 +70,25 @@ Edit the configuration file (`config.yaml`). Set:
 10. `filter_1` with filter threshold for the minimum number of reads per gene.
 11. `filter_2` with p-value threshold for dwell times in the heatmap representation.
 12. A_site_end with `5p` or `3p` defining which read ends to use to compute A site offsets from the pile-up densities at the start codons.
+13. `umi` if your libraries carry unique molecular identifiers (see below). Leave `enabled: false` otherwise.
+
+**UMI-based PCR deduplication (optional)**
+For libraries built with UMIs at both ends of the insert, set `umi: enabled: true` in `config.yaml`. The
+reads are then expected to look like
+
+```
+5'-[UMI left][ insert ][UMI right][3' adapter]-3'
+```
+
+and `Script/DedupUMI.pl` runs between fastq merging and STAR: `cutadapt` removes the `umi: adapter`
+sequence, reads sharing both the same insert **and** the same UMI pair are collapsed to a single copy,
+and the UMIs are then trimmed off. Per-sample statistics (reads in, kept, duplicates, too short) are
+written to `Data/Raw/<sample>.dedup.log`. Set `umi: left` / `umi: right` to the UMI lengths in
+nucleotides and `umi: min_insert` to the shortest insert worth keeping.
+
+With `enabled: false` the merged fastq goes straight to STAR, so downloading and analysing SRA runs works
+exactly as before. The two settings are independent of the entry point: UMI-carrying runs fetched from
+SRA/GEO can be deduplicated the same way.
 
 **Running the pipeline**
 ```

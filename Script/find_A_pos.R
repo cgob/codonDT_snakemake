@@ -1,19 +1,33 @@
 #!/usr/bin/env Rscript
-## Find the A-site position per fragment length from tri-repeat pileup data.
+## Find the A-site offset per fragment length from the start-codon pileup.
 ##
-## Robust to per-frame noise: instead of taking an independent argmax in each
-## codon frame (which can pick a different tract when one frame is noisy at
-## that length), we find the position p in the search window that maximises
-##     density(p-1) + density(p) + density(p+1)
-## and assign the three frame peaks to (p-1, p, p+1) - guaranteed consecutive,
-## one peak per frame.
+## COORDINATE CONVENTION (this is where it is easy to go wrong)
+## -----------------------------------------------------------
+## compute_profile_all.pl centres the metagene on field 5 of the GTF
+## start_codon record, i.e. on the LAST nucleotide of the AUG. So metagene
+## position q corresponds to CDS offset q + 2 for a 5'-anchored read, and to
+## CDS offset (q + 2 - L) for a 3'-anchored one.
 ##
-## Usage (compatible with the existing snakemake rule):
+## Initiating ribosomes hold the AUG in the P site, so their A-site codon
+## begins at CDS offset 3. CountingFullSeq_Apos.pl needs an offset A with
+##     (read CDS offset) + A = 3            [5p]
+##     (read CDS offset) + L - A = 3        [3p]
+## Both reduce to
+##     A = |q - 1|
+## so the reported offset is the modal 5'/3'-end position shifted by ONE
+## nucleotide, not the modal position itself.
+##
+## Ragged ends put reads at q in {peak-1, peak, peak+1}; subtracting one gives
+## the three reported offsets {peak-2, peak-1, peak}. They are consecutive by
+## construction, one per codon frame, and all three derive from a single peak
+## estimate - so a noisy minor frame cannot pull one of them onto a different
+## tract. CountingFullSeq_Apos.pl looks them up by residue mod 3, which for a
+## read at q equals (q - 1) mod 3, i.e. the residue of its own offset member.
+##
+## Usage:
 ##   Rscript find_A_pos.R <start_pos.tsv> <L_1> <L_2> <5p|3p> <out.tsv> <out.pdf>
 ##
-## Output TSV format (no header):
-##   <length>\t<|peak_F2|>\t<|peak_F3|>\t<|peak_F1|>
-## - same column order as the legacy script (drop-in for DT fitting)
+## Output TSV (no header):  <length>\t<A|res 0>\t<A|res 1>\t<A|res 2>
 
 library(data.table)
 
@@ -47,48 +61,35 @@ l <- as.character(L_1:L_2)
 l <- l[l %in% colnames(sum_pos.l)]
 
 ## --------------------------------------------------------------------------
-## search window for the triplet (tighter than the legacy pos_am-derived
-## window). Biological rationale: typical ribosome footprint ~30 nt with
-## the A-site ~15 nt from the 5' end, so the 5'-anchored peak sits at
-## ~-15 nt from the codon centre. We allow +/- 5 nt around that.
-## In 3p-anchored mode the same logic gives a window around +15.
+## Search window for the initiation peak. A ~30 nt footprint with the A site
+## ~15 nt from the 5' end puts the 5'-anchored peak near -14; +/- 5 nt around
+## that. In 3p-anchored mode the mirrored logic gives a window around +15.
 ## --------------------------------------------------------------------------
 
 window <- if (A_site_end == "5p") c(-20L, -10L) else c(10L, 20L)
 
-## triplet centres p s.t. (p-1, p, p+1) all lie inside the window.
-## As p slides by 1, the mod-3 frame assignment of (p-1, p, p+1) cycles
-## through (F1,F2,F3) -> (F2,F3,F1) -> (F3,F1,F2), so all three cyclic
-## configurations are tested by this loop.
-search_p <- (window[1] + 1L):(window[2] - 1L)
-
-frame_of_pos <- function(p) {
-  idx <- p + 101L
-  c("F1", "F2", "F3")[((idx - 1L) %% 3L) + 1L]
-}
-
 ## --------------------------------------------------------------------------
-## consensus peak per length
+## one peak per length -> three consecutive offsets, one per frame
 ## --------------------------------------------------------------------------
 
 consensus_per_length <- lapply(l, function(L) {
   dens <- sum_pos.l[, L]
   names(dens) <- rownames(sum_pos.l)
-  triplet_sums <- vapply(search_p, function(p) {
-    sum(dens[as.character(c(p - 1L, p, p + 1L))], na.rm = TRUE)
-  }, numeric(1))
-  p_best  <- search_p[which.max(triplet_sums)]
-  triplet <- c(p_best - 1L, p_best, p_best + 1L)
-  frames  <- frame_of_pos(triplet)
-  list(F1 = triplet[frames == "F1"],
-       F2 = triplet[frames == "F2"],
-       F3 = triplet[frames == "F3"])
+  peak <- as.integer(names(which.max(dens[as.character(window[1]:window[2])])))
+  if (peak %in% window) {
+    message(sprintf(paste0("WARNING: L = %s: peak sits on the edge of the search ",
+                           "window (%+d in [%+d, %+d]); the true peak may lie outside"),
+                    L, peak, window[1], window[2]))
+  }
+  members <- c(peak - 2L, peak - 1L, peak)     # modal positions minus one
+  list(peak = peak,
+       off  = setNames(members, as.character(members %% 3L)))
 })
 names(consensus_per_length) <- l
 
 ## --------------------------------------------------------------------------
-## per-length diagnostic PDF (matches legacy layout, adds star markers
-## on the chosen consensus peaks)
+## per-length diagnostic PDF: bars coloured by codon frame, the peak circled
+## and the three reported offsets starred
 ## --------------------------------------------------------------------------
 
 pdf(out_file_pdf)
@@ -98,38 +99,32 @@ for (L in l) {
   plot(1:nrow(sum_pos.l), sum_pos.l[, L],
        xlim = c(70, 130), main = paste0("L = ", L, " nt"),
        xaxt = "n", lty = "blank", cex = 0,
-       xlab = "Position", ylab = "Mean footprint density")
+       xlab = "Position (0 = last nt of AUG)", ylab = "Mean footprint density")
   abline(v = 101, col = "grey")
   axis(at = 1:nrow(sum_pos.l), labels = rownames(sum_pos.l), side = 1,
        cex.axis = 0.4)
-  lines(seq(1, nrow(sum_pos.l), 3),
-        sum_pos.l[seq(1, nrow(sum_pos.l), 3), L],
-        col = "darkred",   type = "h")
-  lines(seq(2, nrow(sum_pos.l), 3),
-        sum_pos.l[seq(2, nrow(sum_pos.l), 3), L],
-        col = "darkblue",  type = "h")
-  lines(seq(3, nrow(sum_pos.l), 3),
-        sum_pos.l[seq(3, nrow(sum_pos.l), 3), L],
-        col = "darkgreen", type = "h")
-  for (fr in c("F1", "F2", "F3")) {
-    p <- pk[[fr]]
-    if (length(p) == 1L) {
-      points(p + 101L, sum_pos.l[as.character(p), L],
-             pch = 8, cex = 1.0, lwd = 1.2, col = "black")
-      text(p + 101L, sum_pos.l[as.character(p), L],
-           labels = sprintf("%+d", p), pos = 3, cex = 0.55)
-    }
+  for (k in 1:3) {
+    lines(seq(k, nrow(sum_pos.l), 3), sum_pos.l[seq(k, nrow(sum_pos.l), 3), L],
+          col = c("darkred", "darkblue", "darkgreen")[k], type = "h")
+  }
+  points(pk$peak + 101L, sum_pos.l[as.character(pk$peak), L],
+         pch = 1, cex = 1.8, lwd = 1.2, col = "black")
+  for (m in pk$off) {
+    points(m + 101L, sum_pos.l[as.character(m), L],
+           pch = 8, cex = 1.0, lwd = 1.2, col = "black")
+    text(m + 101L, sum_pos.l[as.character(m), L],
+         labels = sprintf("A=%d", abs(m)), pos = 3, cex = 0.55)
   }
 }
 dev.off()
 
 ## --------------------------------------------------------------------------
-## write inferred.tsv (legacy column order: |F2|, |F3|, |F1|)
+## write inferred.tsv, columns ordered by residue mod 3 (the key used by
+## CountingFullSeq_Apos.pl)
 ## --------------------------------------------------------------------------
 
-A_pos <- t(sapply(consensus_per_length, function(x) {
-  c(abs(x$F2), abs(x$F3), abs(x$F1))
-}))
+A_pos <- t(sapply(consensus_per_length, function(x)
+  abs(c(x$off[["0"]], x$off[["1"]], x$off[["2"]]))))
 rownames(A_pos) <- l
 write.table(A_pos, file = out_file_tsv, sep = "\t", quote = FALSE,
             col.names = FALSE)

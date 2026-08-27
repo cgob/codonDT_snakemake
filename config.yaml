@@ -1,35 +1,45 @@
 
-workdir: "/scratch/cgobet/snake_codon/" # Working directory to be defined by user 
-refdir: "/scratch/cgobet/snake_codon/references/" # directory for the genome reference files, to be defined by the user
-homedir: "/home/cgobet/SNAKE_METHODS/codonDT_snakemake/" # Home directory to be defined by user 
+workdir: "/scratch/cgobet/2026_08_26_RiboSeq_Leon/" # Working directory to be defined by user 
+refdir: "/scratch/cgobet/2026_08_26_RiboSeq_Leon/references/" # directory for the genome reference files, to be defined by the user
+homedir: "/home/cgobet/2026_08_26_RiboSeq_Leon/codonDT_snakemake/" # Home directory to be defined by user 
 #Species (Mouse, Yeast or Human)
-species: Yeast # Species to be defined by user 
+species: Human # Species to be defined by user 
 #URL for Ensembls sequence files for Mouse, Human and Yeast (S. cer.)  
 Mouse:
-  cds: "ftp://ftp.ensembl.org/pub/release-95/fasta/mus_musculus/cds/Mus_musculus.GRCm38.cds.all.fa.gz" 
-  gtf: "ftp://ftp.ensembl.org/pub/release-95/gtf/mus_musculus/Mus_musculus.GRCm38.95.gtf.gz"
-  genome: "ftp://ftp.ensembl.org/pub/release-95/fasta/mus_musculus/dna/Mus_musculus.GRCm38.dna.primary_assembly.fa.gz"
+  cds: "ftp://ftp.ensembl.org/pub/release-116/fasta/mus_musculus/cds/Mus_musculus.GRCm38.cds.all.fa.gz" 
+  gtf: "ftp://ftp.ensembl.org/pub/release-116/gtf/mus_musculus/Mus_musculus.GRCm38.116.gtf.gz"
+  genome: "ftp://ftp.ensembl.org/pub/release-116/fasta/mus_musculus/dna/Mus_musculus.GRCm38.dna.primary_assembly.fa.gz"
 
 Human:
-  cds: "ftp://ftp.ensembl.org/pub/release-95/fasta/homo_sapiens/cds/Homo_sapiens.GRCh38.cds.all.fa.gz"
-  gtf: "ftp://ftp.ensembl.org/pub/release-95/gtf/homo_sapiens/Homo_sapiens.GRCh38.95.gtf.gz"
-  genome: "ftp://ftp.ensembl.org/pub/release-95/fasta/homo_sapiens/dna/Homo_sapiens.GRCh38.dna.primary_assembly.fa.gz"
+  cds: "ftp://ftp.ensembl.org/pub/release-116/fasta/homo_sapiens/cds/Homo_sapiens.GRCh38.cds.all.fa.gz"
+  gtf: "ftp://ftp.ensembl.org/pub/release-116/gtf/homo_sapiens/Homo_sapiens.GRCh38.116.gtf.gz"
+  genome: "ftp://ftp.ensembl.org/pub/release-116/fasta/homo_sapiens/dna/Homo_sapiens.GRCh38.dna.primary_assembly.fa.gz"
 
 Yeast:
-  cds: "ftp://ftp.ensembl.org/pub/release-95/fasta/saccharomyces_cerevisiae/cds/Saccharomyces_cerevisiae.R64-1-1.cds.all.fa.gz"
-  gtf: "ftp://ftp.ensembl.org/pub/release-95/gtf/saccharomyces_cerevisiae/Saccharomyces_cerevisiae.R64-1-1.95.gtf.gz"
-  genome: "ftp://ftp.ensembl.org/pub/release-95/fasta/saccharomyces_cerevisiae/dna/Saccharomyces_cerevisiae.R64-1-1.dna.toplevel.fa.gz"
+  cds: "ftp://ftp.ensembl.org/pub/release-116/fasta/saccharomyces_cerevisiae/cds/Saccharomyces_cerevisiae.R64-1-1.cds.all.fa.gz"
+  gtf: "ftp://ftp.ensembl.org/pub/release-116/gtf/saccharomyces_cerevisiae/Saccharomyces_cerevisiae.R64-1-1.116.gtf.gz"
+  genome: "ftp://ftp.ensembl.org/pub/release-116/fasta/saccharomyces_cerevisiae/dna/Saccharomyces_cerevisiae.R64-1-1.dna.toplevel.fa.gz"
  
 # path to sample spreadsheet (TSV format, columns: SAMPLES, Type, SRR)
 samples: samples.tsv # to be defined by user
 # the sequencing adapter
-adapter: TGGAATTCTCGGGTGCCAAGG  # 3' adapter to trimm
+adapter: AGATCGGAAGAGCACACGTCT  # 3' adapter to trimm
+
+umi:
+  enabled: true
+  left: 5                              # UMI length at the 5' end (nt)
+  right: 4                             # UMI length at the 3' end (nt)
+  adapter: AGATCGGAAGAGCACACGTCT       # 3' adapter removed by cutadapt before dedup
+  min_insert: 10                       # discard reads with an insert shorter than this
 # lower bound read size
 L1: "26"
 # upper bound read size
 L2: "35"
 # Strandness of the the library (pos_neg or neg_pos)
 library: "pos_neg"
+# Number of shards countreads is split into (sharded by contig; exact, not approximate).
+# The slowest shard is bounded by the largest single contig, ~10% for a mammal.
+count_shards: 25
 # Filter threshold for the minimum number of reads per gene
 filter_1: "100"
 # Filter threshold for the p-value. Dwell times with p-value smaller than the threshold are plotted.

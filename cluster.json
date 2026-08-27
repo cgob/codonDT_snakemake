@@ -1,73 +1,82 @@
 {
-    "__default__" :
-    {
-        "time" : "01:00:00",
-        "n" : 1,
-        "mem" : "20G"
+    "__default__": {
+        "time": "01:00:00",
+        "n": 3,
+        "mem": "20G"
     },
-    "run_index_star" :
-    {
-        "time" : "02:00:00",
-        "n" : 12,
-        "mem" : "40G"
+    "run_index_star": {
+        "time": "08:00:00",
+        "n": 12,
+        "mem": "80G"
     },
-    "sra2fastq" :
-    {
-        "time" : "02:00:00",
-        "mem" : "20G"
+    "sra2fastq": {
+        "time": "02:00:00",
+        "mem": "20G",
+        "n": 3
     },
-     "downloadSRA" :
-    {
-        "time" : "02:00:00",
-        "mem" : "40G"
+    "downloadSRA": {
+        "time": "02:00:00",
+        "mem": "40G",
+        "n": 6
     },
-    "runstar" :
-    {
-        "time" : "03:00:00",
-        "n" : 12,
-        "mem" : "60G"
+    "dedup_umi": {
+        "time": "08:00:00",
+        "n": 6,
+        "mem": "40G"
     },
-    "samindex" :
-    {
-        "time" : "00:30:00",
-        "n" : 1,
-        "mem" : "10G"
+    "runstar": {
+        "time": "06:00:00",
+        "n": 12,
+        "mem": "80G"
     },
-    "countreads" :
-    {
-        "time" : "22:00:00",
-        "n" : 1,
-        "mem" : "20G"
+    "samindex": {
+        "time": "00:30:00",
+        "n": 2,
+        "mem": "10G"
     },
-    "loaddata" :
-    {
-        "time" : "02:00:00",
-        "n" : 1,
-        "mem" : "40G"
+    "countreads": {
+        "time": "00:30:00",
+        "n": 1,
+        "mem": "6G"
     },
-    "makefit" :
-    {
-        "time" : "02:00:00",
-        "n" : 1,
-        "mem" : "40G"
+    "loaddata": {
+        "time": "02:00:00",
+        "n": 6,
+        "mem": "40G"
     },
-    "makefit_combined" :
-    {
-        "time" : "02:00:00",
-        "n" : 1,
-        "mem" : "40G"
-    }, 
-    "coepval" :
-    {
-        "time" : "01:00:00",
-        "n" : 1,
-        "mem" : "40G"
+    "makefit": {
+        "time": "02:00:00",
+        "n": 6,
+        "mem": "40G"
     },
-    "pileupplot" :
-    {
-        "time" : "04:00:00",
-        "n" : 1,
-        "mem" : "10G"
+    "makefit_combined": {
+        "time": "02:00:00",
+        "n": 6,
+        "mem": "40G"
+    },
+    "coepval": {
+        "time": "01:00:00",
+        "n": 6,
+        "mem": "40G"
+    },
+    "pileupplot": {
+        "time": "04:00:00",
+        "n": 2,
+        "mem": "10G"
+    },
+    "make_shards": {
+        "time": "00:20:00",
+        "n": 1,
+        "mem": "6G"
+    },
+    "countreads_shard": {
+        "time": "06:00:00",
+        "n": 3,
+        "mem": "20G"
+    },
+    "prep_cds_rdata": {
+        "time": "03:00:00",
+        "n": 9,
+        "mem": "60G"
     }
- 
 }

@@ -14,6 +14,7 @@
 import pandas as pd
 import glob 
 import numpy as np
+import os
 import re
 
 #### Load configuration and sample sheet ####
@@ -37,6 +38,21 @@ workdir: config['workdir']
 
 SAMPLES=df.SAMPLES.unique()
 
+#### UMI / PCR-deduplication settings ####
+# When enabled, raw fastq go through adapter trimming + UMI deduplication
+# (Script/DedupUMI.pl) before STAR. When disabled the merged fastq is mapped
+# directly, so the SRA route keeps working unchanged.
+UMI = config.get('umi', {}) or {}
+UMI_ENABLED = bool(UMI.get('enabled', False))
+
+#### Parallelisation of the read counting ####
+# countreads is the pipeline bottleneck: one samtools view per transcript.
+# It is sharded by contig, which is exact rather than approximate (see the
+# comment in Script/CountingFullSeq_Apos.pl). Shard membership is computed by
+# Script/make_shards.py; only the shard COUNT has to be known at parse time.
+N_SHARDS = int(config.get('count_shards', 25))
+SHARDS = [str(i) for i in range(N_SHARDS)]
+
 ### Function definition ###
 
 def get_sample_sra_rel(wildcards):
@@ -50,6 +66,22 @@ def get_rna_from_ribo(wildcards):
         return "Data/Counting/" + str(wildcards.sample) + "_ncount.RData"
     else:
         return "Data/Fit/" + sample_rna + "_fit_" + str(wildcards.pair) + ".RData"
+
+
+def get_merged_fastq(wildcards):
+    # Pre-merged libraries are often kept gzipped (and may be symlinks to a
+    # read-only location, so they cannot be decompressed in place). cutadapt
+    # reads .gz directly, so hand the compressed file straight to dedup_umi.
+    merged = "Data/Raw/" + wildcards.sample + ".fastq.merge"
+    if not os.path.exists(merged) and os.path.exists(merged + ".gz"):
+        return merged + ".gz"
+    return merged
+
+
+def get_star_fastq(wildcards):
+    if UMI_ENABLED:
+        return "Data/Raw/" + wildcards.sample + ".fastq.dedup"
+    return "Data/Raw/" + wildcards.sample + ".fastq.merge"
 
 
 def get_AsiteRNA_from_ribo(wildcards):
@@ -129,6 +161,26 @@ rule mergefastq:
         "Data/Raw/{sample}.fastq.merge"
     shell: "cat {input} > {output}"
 
+##----------------------------------------------------##
+##  Adapter trimming and UMI PCR-deduplication         ##
+##----------------------------------------------------##
+## Only part of the DAG when config['umi']['enabled'] is true.
+## Read layout: 5'-[UMI left][insert][UMI right][3' adapter]-3'
+
+rule dedup_umi:
+    input:
+        get_merged_fastq
+    output:
+        "Data/Raw/{sample}.fastq.dedup"
+    params:
+        adapter = UMI.get('adapter', ''),
+        umi_left = UMI.get('left', 0),
+        umi_right = UMI.get('right', 0),
+        min_insert = UMI.get('min_insert', 10)
+    log:
+        "Data/Raw/{sample}.dedup.log"
+    shell: "perl {homedir}Script/DedupUMI.pl {input} {params.adapter} {params.umi_left} {params.umi_right} {params.min_insert} {output} 2> {log}"
+
 ##--------------------------------------##
 ##  STAR alignment to the genome        ##
 ##--------------------------------------##
@@ -136,7 +188,7 @@ rule mergefastq:
 
 rule runstar:
     input:
-        fastq = "Data/Raw/{sample}.fastq.merge" , genome= rules.run_index_star.output.genome
+        fastq = get_star_fastq , genome= rules.run_index_star.output.genome
     output:
         "Data/Mapping/{sample}Aligned.sortedByCoord.out.bam"
     params: star_params = "--outSAMtype BAM SortedByCoordinate --seedSearchStartLmax 15 --limitBAMsortRAM 61000000000",
@@ -217,20 +269,40 @@ rule findAsite:
 ## Read counting and CDS position       ##
 ##--------------------------------------##
 
-rule countreads:
+rule make_shards:
     input:
-        bam = "Data/Mapping/{sample}Aligned.sortedByCoord.out.bam", 
+        cds = rules.download_ensembl_cds.output.cds
+    output:
+        expand("Data/Counting/shards/{shard}.txt", shard=SHARDS)
+    params:
+        n = N_SHARDS,
+        outdir = "Data/Counting/shards"
+    shell: "python3 {homedir}Script/make_shards.py {input.cds} {params.n} {params.outdir}"
+
+rule countreads_shard:
+    input:
+        bam = "Data/Mapping/{sample}Aligned.sortedByCoord.out.bam",
 	bam_index = "Data/Mapping/{sample}Aligned.sortedByCoord.out.bam.bai",
 	cds = rules.download_ensembl_cds.output.cds,
-	A_site_pos = get_AsiteRNA_from_ribo
+	A_site_pos = get_AsiteRNA_from_ribo,
+	shard = "Data/Counting/shards/{shard}.txt"
     output:
-        "Data/Counting/{sample}.count" 
-    params: 
+        temp("Data/Counting/{sample}.shard{shard}.count")
+    params:
         L1 = config["L1"],
         L2 = config["L2"],
         STRAND = config["library"],
         A_site_end = config["A_site_end"]
-    shell: "perl {homedir}Script/CountingFullSeq_Apos.pl {input.bam} {params.L1} {params.L2} {params.STRAND} {params.A_site_end} {input.cds} {input.A_site_pos} {output}"
+    wildcard_constraints: sample="[^.]+", shard="[0-9]+"
+    shell: "perl {homedir}Script/CountingFullSeq_Apos.pl {input.bam} {params.L1} {params.L2} {params.STRAND} {params.A_site_end} {input.cds} {input.A_site_pos} {output} {input.shard}"
+
+rule countreads:
+    input:
+        expand("Data/Counting/{{sample}}.shard{shard}.count", shard=SHARDS)
+    output:
+        "Data/Counting/{sample}.count"
+    wildcard_constraints: sample="[^.]+"
+    shell: "cat {input} > {output}"
 
 ##--------------------------------------##
 ## Parse CDS for ref. in the fit        ##
@@ -243,6 +315,20 @@ rule parsecds:
         parse_cds = refdir + spec + '/ensembl.cds.parse.fa'
     shell: "perl {homedir}Script/CdsAllSeq.pl {input} >  {output}"
 
+##--------------------------------------------------##
+## Cache of every in-frame 40-codon CDS window       ##
+##--------------------------------------------------##
+## Its own rule on purpose: LoadAndGenData.R used to build this behind an
+## "if (!file.exists)" guard, so the parallel loaddata jobs all raced to write
+## the same file and readers died on a half-written RData.
+
+rule prep_cds_rdata:
+    input:
+        parse_cds = rules.parsecds.output.parse_cds
+    output:
+        rdata = refdir + spec + '/ensembl.cds.parse.fa.RData'
+    shell: "Rscript {homedir}Script/PrepCdsRData.R {input.parse_cds}"
+
 ##--------------------------------------##
 ## Load count file and gen. matrix      ##
 ##--------------------------------------##
@@ -250,10 +336,12 @@ rule parsecds:
 rule loaddata:
     input:
         count_2="Data/Counting/{sample}.count", 
-        parse_cds=rules.parsecds.output.parse_cds
+        parse_cds=rules.parsecds.output.parse_cds,
+        cds_rdata=rules.prep_cds_rdata.output.rdata
     output:
         "Data/Counting/{sample}_ncount.RData"
     params: filter_1 = config['filter_1']
+    wildcard_constraints: sample="[^.]+"
     shell: "Rscript {homedir}Script/LoadAndGenData.R {input.count_2} {output} {input.parse_cds} {params.filter_1}"
 
 ##--------------------------------------##
