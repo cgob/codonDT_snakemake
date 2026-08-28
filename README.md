@@ -63,7 +63,7 @@ Edit the configuration file (`config.yaml`). Set:
 3. `refdir` with the path of the reference genome directory.
 4. `species` with the proper species for your dataset (Mouse, Human, Yeast).  
 5. `adapter` with the 3'-adapter used during library preparation of your dataset.
-6. `L1` with the read size lower bound ( `L1` > reads > `L2` are kept for the fit).  
+6. `L1` with the read size lower bound (reads with `L1` <= length <= `L2` are kept for the fit).  
 7. `L2` with the read size upper bound.  
 8. `library` with 'pos_neg' or 'neg_pos' depending on the strandness configuration of your library preparation.  
 9. `samples` with the tab-delimited file defined above describing your samples.

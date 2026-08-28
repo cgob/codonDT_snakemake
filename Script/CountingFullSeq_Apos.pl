@@ -137,7 +137,7 @@ close $fh;
 		                                 $rseq = substr $read[9], 0, $length;
 						}
 							
-						if($master{$k}{$k2}{'seq'} =~ $rseq and $length > $l_1 and $length < $l_2){ # if sequence match fasta cds
+						if($master{$k}{$k2}{'seq'} =~ $rseq and $length >= $l_1 and $length <= $l_2){ # if sequence match fasta cds
 						 my $posi = $-[0];
 						 $read_tot{$read[0]}=1;	
 					         my $posi2=$posi;
