@@ -295,9 +295,10 @@ rule plot_A_site_profiles:
         xlo = -100,
         xhi = 60,
         win_lo = A_SITE_WINDOW[0],
-        win_hi = A_SITE_WINDOW[1]
+        win_hi = A_SITE_WINDOW[1],
+        A_site_end = config["A_site_end"]
     wildcard_constraints: sample=".*RIBO.*"
-    shell: "Rscript {homedir}Script/plot_A_site_profiles.R {input.A_site} {output.pdf} {params.xlo} {params.xhi} {params.win_lo} {params.win_hi}"
+    shell: "Rscript {homedir}Script/plot_A_site_profiles.R {input.A_site} {output.pdf} {params.xlo} {params.xhi} {params.win_lo} {params.win_hi} {params.A_site_end}"
 
 
 ##--------------------------------------##
