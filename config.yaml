@@ -1,14 +1,14 @@
 
-workdir: "/scratch/cgobet/2026_08_26_RiboSeq_Leon/" # Working directory to be defined by user 
-refdir: "/scratch/cgobet/2026_08_26_RiboSeq_Leon/references/" # directory for the genome reference files, to be defined by the user
-homedir: "/home/cgobet/2026_08_26_RiboSeq_Leon/codonDT_snakemake/" # Home directory to be defined by user 
+workdir: "/path/to/project/" # Working directory to be defined by user 
+refdir: "/path/to/project/references/" # directory for the genome reference files, to be defined by the user
+homedir: "/path/to/codonDT_snakemake/" # Home directory to be defined by user 
 #Species (Mouse, Yeast or Human)
-species: Human # Species to be defined by user 
+species: Mouse # Species to be defined by user 
 #URL for Ensembls sequence files for Mouse, Human and Yeast (S. cer.)  
 Mouse:
-  cds: "ftp://ftp.ensembl.org/pub/release-116/fasta/mus_musculus/cds/Mus_musculus.GRCm38.cds.all.fa.gz" 
-  gtf: "ftp://ftp.ensembl.org/pub/release-116/gtf/mus_musculus/Mus_musculus.GRCm38.116.gtf.gz"
-  genome: "ftp://ftp.ensembl.org/pub/release-116/fasta/mus_musculus/dna/Mus_musculus.GRCm38.dna.primary_assembly.fa.gz"
+  cds: "https://ftp.ensembl.org/pub/release-116/fasta/mus_musculus/cds/Mus_musculus.GRCm39.cds.all.fa.gz" 
+  gtf: "https://ftp.ensembl.org/pub/release-116/gtf/mus_musculus/Mus_musculus.GRCm39.116.gtf.gz"
+  genome: "https://ftp.ensembl.org/pub/release-116/fasta/mus_musculus/dna/Mus_musculus.GRCm39.dna.primary_assembly.fa.gz"
 
 Human:
   cds: "ftp://ftp.ensembl.org/pub/release-116/fasta/homo_sapiens/cds/Homo_sapiens.GRCh38.cds.all.fa.gz"
@@ -26,7 +26,7 @@ samples: samples.tsv # to be defined by user
 adapter: AGATCGGAAGAGCACACGTCT  # 3' adapter to trimm
 
 umi:
-  enabled: true
+  enabled: false
   left: 5                              # UMI length at the 5' end (nt)
   right: 4                             # UMI length at the 3' end (nt)
   adapter: AGATCGGAAGAGCACACGTCT       # 3' adapter removed by cutadapt before dedup
@@ -45,5 +45,18 @@ filter_1: "100"
 # Filter threshold for the p-value. Dwell times with p-value smaller than the threshold are plotted.
 filter_2: "1"
 # 5' or 3' end to compute A site from the pile-up plot at the start codon (5p or 3p)
-A_site_end: "5p" 
+A_site_end: "5p"
+# Search window for the initiation peak, in METAGENE coordinates:
+# 0 = last nucleotide of the AUG, negative = upstream (5' UTR), positive = downstream (CDS).
+# This is NOT an offset - it is where the read end being histogrammed lands relative to
+# the start codon. The sign must therefore match A_site_end:
+#   5p -> the read's 5' end sits UPSTREAM of the AUG  -> window must be negative
+#   3p -> the read's 3' end sits DOWNSTREAM of the AUG -> window must be positive
+# Typical values:
+#   monosome, 5p (~30 nt footprint, A site ~15 nt in) : [-20, -10]
+#   disome,   5p (intact ~67 nt, peak near -45)       : [-50, -25]
+#   disome,   3p (3' end pinned near +22)             : [15, 30]
+# find_A_pos.R warns if a peak lands on the window edge - that means the true peak is
+# probably outside the window, so widen it rather than trusting the result.
+A_site_window: [-20, -10] 
 

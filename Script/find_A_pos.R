@@ -25,7 +25,8 @@
 ## read at q equals (q - 1) mod 3, i.e. the residue of its own offset member.
 ##
 ## Usage:
-##   Rscript find_A_pos.R <start_pos.tsv> <L_1> <L_2> <5p|3p> <out.tsv> <out.pdf>
+##   Rscript find_A_pos.R <start_pos.tsv> <L_1> <L_2> <5p|3p> <out.tsv> <out.pdf> \
+##                        [<win_lo> <win_hi>]
 ##
 ## Output TSV (no header):  <length>\t<A|res 0>\t<A|res 1>\t<A|res 2>
 
@@ -38,6 +39,7 @@ L_2          <- as.integer(args[3])
 A_site_end   <- args[4]
 out_file_tsv <- args[5]
 out_file_pdf <- args[6]
+win_args     <- if (length(args) >= 8) args[7:8] else NULL
 
 ## --------------------------------------------------------------------------
 ## read + row-normalise pileup, then average per length
@@ -66,7 +68,31 @@ l <- l[l %in% colnames(sum_pos.l)]
 ## that. In 3p-anchored mode the mirrored logic gives a window around +15.
 ## --------------------------------------------------------------------------
 
-window <- if (A_site_end == "5p") c(-20L, -10L) else c(10L, 20L)
+## Taken from config.yaml (A_site_window) when supplied; the old hard-coded
+## monosome defaults are kept as a fallback. The window is in METAGENE
+## coordinates (0 = last nt of the AUG), so its sign has to match A_site_end:
+## a 5'-anchored read sits upstream of the AUG (negative), a 3'-anchored one
+## downstream (positive). Getting that pairing wrong used to fail silently, so
+## it is now an error.
+if (!is.null(win_args)) {
+  window <- as.integer(win_args)
+  if (any(is.na(window)))
+    stop("A_site_window must be two integers, got: ", paste(win_args, collapse = ", "))
+} else {
+  window <- if (A_site_end == "5p") c(-20L, -10L) else c(10L, 20L)
+}
+if (window[1] >= window[2])
+  stop(sprintf("A_site_window must be increasing, got [%d, %d]", window[1], window[2]))
+if (A_site_end == "5p" && window[2] > 0)
+  stop(sprintf(paste0("A_site_end is 5p (read 5' end, upstream of the AUG) but ",
+                      "A_site_window = [%d, %d] is not negative. See the ",
+                      "A_site_window comment in config.yaml."), window[1], window[2]))
+if (A_site_end == "3p" && window[1] < 0)
+  stop(sprintf(paste0("A_site_end is 3p (read 3' end, downstream of the AUG) but ",
+                      "A_site_window = [%d, %d] is not positive. See the ",
+                      "A_site_window comment in config.yaml."), window[1], window[2]))
+message(sprintf("A_site_end = %s, search window = [%+d, %+d]",
+                A_site_end, window[1], window[2]))
 
 ## --------------------------------------------------------------------------
 ## one peak per length -> three consecutive offsets, one per frame
@@ -92,27 +118,51 @@ names(consensus_per_length) <- l
 ## and the three reported offsets starred
 ## --------------------------------------------------------------------------
 
+## Plotted in metagene coordinates (not row indices), over a range wide enough
+## to contain the peak wherever it actually is. The old fixed xlim = c(70, 130)
+## was in index units, i.e. -31..+29, which cut off the initiation peak of any
+## fragment long enough to reach further upstream - a 64 nt disome peaks near
+## -42 and was simply off the page, so a window sitting on noise looked fine.
+## The search window is now shaded and the global maximum of the plotted range
+## dashed, so a peak outside the window is visible at a glance.
 pdf(out_file_pdf)
 par(mfrow = c(2, 2), pty = "s")
+pp <- as.integer(rownames(sum_pos.l))
 for (L in l) {
   pk <- consensus_per_length[[L]]
-  plot(1:nrow(sum_pos.l), sum_pos.l[, L],
-       xlim = c(70, 130), main = paste0("L = ", L, " nt"),
+  Ln <- as.integer(L)
+  if (A_site_end == "5p") {
+    xlo <- min(window[1] - 15L, -(Ln + 15L)); xhi <- max(window[2] + 15L, 40L)
+  } else {
+    xlo <- min(window[1] - 15L, -40L);        xhi <- max(window[2] + 15L, Ln + 15L)
+  }
+  xlo <- max(xlo, min(pp)); xhi <- min(xhi, max(pp))
+
+  plot(pp, sum_pos.l[, L],
+       xlim = c(xlo, xhi), main = paste0("L = ", L, " nt"),
        xaxt = "n", lty = "blank", cex = 0,
        xlab = "Position (0 = last nt of AUG)", ylab = "Mean footprint density")
-  abline(v = 101, col = "grey")
-  axis(at = 1:nrow(sum_pos.l), labels = rownames(sum_pos.l), side = 1,
-       cex.axis = 0.4)
+  usr <- par("usr")
+  rect(window[1], usr[3], window[2], usr[4], col = rgb(1, 0, 0, 0.10), border = NA)
+  abline(v = 0, col = "grey")
+  axis(side = 1, at = seq(-100L, 100L, by = 5L), cex.axis = 0.5)
   for (k in 1:3) {
-    lines(seq(k, nrow(sum_pos.l), 3), sum_pos.l[seq(k, nrow(sum_pos.l), 3), L],
+    idx <- seq(k, length(pp), 3)
+    lines(pp[idx], sum_pos.l[idx, L],
           col = c("darkred", "darkblue", "darkgreen")[k], type = "h")
   }
-  points(pk$peak + 101L, sum_pos.l[as.character(pk$peak), L],
+  sel <- pp >= xlo & pp <= xhi
+  gi  <- which(sel)[which.max(sum_pos.l[sel, L])]
+  abline(v = pp[gi], lty = 2, col = "grey40")
+  if (pp[gi] < window[1] || pp[gi] > window[2])
+    mtext(sprintf("global max %+d OUTSIDE window", pp[gi]),
+          side = 3, line = -1, cex = 0.55, col = "red")
+  points(pk$peak, sum_pos.l[as.character(pk$peak), L],
          pch = 1, cex = 1.8, lwd = 1.2, col = "black")
   for (m in pk$off) {
-    points(m + 101L, sum_pos.l[as.character(m), L],
+    points(m, sum_pos.l[as.character(m), L],
            pch = 8, cex = 1.0, lwd = 1.2, col = "black")
-    text(m + 101L, sum_pos.l[as.character(m), L],
+    text(m, sum_pos.l[as.character(m), L],
          labels = sprintf("A=%d", abs(m)), pos = 3, cex = 0.55)
   }
 }

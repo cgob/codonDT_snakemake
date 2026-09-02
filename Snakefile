@@ -53,6 +53,15 @@ UMI_ENABLED = bool(UMI.get('enabled', False))
 N_SHARDS = int(config.get('count_shards', 25))
 SHARDS = [str(i) for i in range(N_SHARDS)]
 
+#### A-site initiation-peak search window ####
+# Metagene coordinates (0 = last nt of the AUG). Sign must match A_site_end;
+# find_A_pos.R errors out if it does not. Falls back to the historical
+# monosome defaults when the key is absent from config.yaml.
+A_SITE_WINDOW = config.get('A_site_window')
+if not A_SITE_WINDOW:
+    A_SITE_WINDOW = [-20, -10] if config['A_site_end'] == '5p' else [10, 20]
+A_SITE_WINDOW = [int(A_SITE_WINDOW[0]), int(A_SITE_WINDOW[1])]
+
 ### Function definition ###
 
 def get_sample_sra_rel(wildcards):
@@ -260,9 +269,11 @@ rule findAsite:
     params:
         L1 = config["L1"],
         L2 = config["L2"],
-        A_site_end = config["A_site_end"]
+        A_site_end = config["A_site_end"],
+        win_lo = A_SITE_WINDOW[0],
+        win_hi = A_SITE_WINDOW[1]
     wildcard_constraints: sample=".*RIBO.*"   
-    shell: "Rscript {homedir}Script/find_A_pos.R {input.A_site} {params.L1} {params.L2} {params.A_site_end} {output.tsv} {output.pdf}"
+    shell: "Rscript {homedir}Script/find_A_pos.R {input.A_site} {params.L1} {params.L2} {params.A_site_end} {output.tsv} {output.pdf} {params.win_lo} {params.win_hi}"
 
 
 ##--------------------------------------##
