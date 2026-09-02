@@ -37,6 +37,7 @@ homedir=config['homedir']
 workdir: config['workdir'] 
 
 SAMPLES=df.SAMPLES.unique()
+RIBO_SAMPLES=[x for x in SAMPLES if "RIBO" in x]
 
 #### UMI / PCR-deduplication settings ####
 # When enabled, raw fastq go through adapter trimming + UMI deduplication
@@ -106,7 +107,7 @@ pair_pos = ['24:25','25:26','24:26']
 ##--------------------------------------##
 rule all:
      input:
-        expand("Data/Fit/{sample}_plot_{pair}.pdf", sample=SAMPLES , pair= pair_pos), "Data/Tables/summary_flux.tsv", "Data/Tables/summary_single_DT.tsv", "Data/Tables/summary_pair_DT.tsv"
+        expand("Data/Fit/{sample}_plot_{pair}.pdf", sample=SAMPLES , pair= pair_pos), "Data/Tables/summary_flux.tsv", "Data/Tables/summary_single_DT.tsv", "Data/Tables/summary_pair_DT.tsv", expand("Data/A_site_offset/{sample}_A_site_profiles.pdf", sample=RIBO_SAMPLES)
 ##--------------------------------------##
 ##  Download gtf from Ensembl           ##
 ##--------------------------------------##
@@ -274,6 +275,29 @@ rule findAsite:
         win_hi = A_SITE_WINDOW[1]
     wildcard_constraints: sample=".*RIBO.*"   
     shell: "Rscript {homedir}Script/find_A_pos.R {input.A_site} {params.L1} {params.L2} {params.A_site_end} {output.tsv} {output.pdf} {params.win_lo} {params.win_hi}"
+
+
+##------------------------------------------------------##
+##  A-site profile diagnostic, all lengths, wide window ##
+##------------------------------------------------------##
+## Independent of L1/L2 and of A_site_window: it plots every length present
+## in the pile-up over a wide range, with no peak selection. That is what is
+## needed to CHOOSE the size window and the search window in the first place -
+## find_A_pos.R only ever plots L1:L2, so a population outside the current
+## thresholds is invisible there.
+
+rule plot_A_site_profiles:
+    input:
+        A_site = "Data/A_site_offset/{sample}_A_site_pos.tsv"
+    output:
+        pdf = "Data/A_site_offset/{sample}_A_site_profiles.pdf"
+    params:
+        xlo = -100,
+        xhi = 60,
+        win_lo = A_SITE_WINDOW[0],
+        win_hi = A_SITE_WINDOW[1]
+    wildcard_constraints: sample=".*RIBO.*"
+    shell: "Rscript {homedir}Script/plot_A_site_profiles.R {input.A_site} {output.pdf} {params.xlo} {params.xhi} {params.win_lo} {params.win_hi}"
 
 
 ##--------------------------------------##
