@@ -1,14 +1,6 @@
 #!/usr/bin/env Rscript
-## Build the cached reference of every in-frame 40-codon CDS window.
-##
-## This used to live inside LoadAndGenData.R behind an `if (!file.exists(...))`
-## guard. With one loaddata job per sample they all start together, all see the
-## cache missing, and all write the same path - readers then hit a half-written
-## file and die with "ReadItem : type inconnu 0". It is a rule of its own now,
-## so snakemake builds it exactly once before any loaddata runs.
-##
-## Usage: Rscript PrepCdsRData.R <ensembl.cds.parse.fa>
-##        writes <ensembl.cds.parse.fa>.RData
+## Cache every in-frame 40-codon CDS window (own rule, built once before loaddata).
+## Usage: Rscript PrepCdsRData.R <ensembl.cds.parse.fa>  -> <ensembl.cds.parse.fa>.RData
 
 args = commandArgs(trailingOnly=TRUE)
 cds_path = args[1]

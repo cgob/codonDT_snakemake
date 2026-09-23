@@ -1,18 +1,7 @@
 #!/usr/bin/perl
-###########################################################################
 ## Adapter trimming + UMI-based PCR deduplication.
-##
-## Read layout expected:
-##   5'-[UMI_left][ insert ][UMI_right][3' adapter]-3'
-##
-## cutadapt removes the 3' adapter, then reads are deduplicated on the full
-## remaining sequence (insert + both UMIs): two reads sharing the same insert
-## AND the same UMI pair are PCR duplicates, so only the first is kept.
-## The UMIs are stripped from the surviving reads (sequence and quality).
-##
-## Usage:
-##   perl DedupUMI.pl <in.fastq> <adapter> <umi_left> <umi_right> <min_insert> <out.fastq>
-###########################################################################
+## Layout 5'-[UMI_left][insert][UMI_right][3' adapter]-3'; same insert + same UMI pair = duplicate.
+## Usage: perl DedupUMI.pl <in.fastq> <adapter> <umi_left> <umi_right> <min_insert> <out.fastq>
 
 use strict;
 use warnings;
@@ -50,8 +39,7 @@ while (my $name = <$FH>) {
     chomp($name, $seq, $plus, $qual);
     $total++;
 
-    # cutadapt -m already enforces this, but a stray short read would make the
-    # substr below silently return an empty or negative-length string.
+    # guard against reads shorter than both UMIs
     if (length($seq) < $min_len) { $short++; next; }
 
     # Key on the untrimmed sequence: identical insert + identical UMIs = PCR duplicate.

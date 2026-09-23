@@ -37,8 +37,7 @@ L1: "26"
 L2: "35"
 # Strandness of the the library (pos_neg or neg_pos)
 library: "pos_neg"
-# Number of shards countreads is split into (sharded by contig; exact, not approximate).
-# The slowest shard is bounded by the largest single contig, ~10% for a mammal.
+# Number of parallel shards for read counting
 count_shards: 25
 # Filter threshold for the minimum number of reads per gene
 filter_1: "100"
@@ -46,34 +45,12 @@ filter_1: "100"
 filter_2: "1"
 # 5' or 3' end to compute A site from the pile-up plot at the start codon (5p or 3p)
 A_site_end: "5p"
-# Search window for the initiation peak, in METAGENE coordinates:
-# 0 = last nucleotide of the AUG, negative = upstream (5' UTR), positive = downstream (CDS).
-# This is NOT an offset - it is where the read end being histogrammed lands relative to
-# the start codon. The sign must therefore match A_site_end:
-#   5p -> the read's 5' end sits UPSTREAM of the AUG  -> window must be negative
-#   3p -> the read's 3' end sits DOWNSTREAM of the AUG -> window must be positive
-# Typical values:
-#   monosome, 5p (~30 nt footprint, A site ~15 nt in) : [-20, -10]
-#   disome,   5p (intact ~67 nt, peak near -45)       : [-50, -25]
-#   disome,   3p (3' end pinned near +22)             : [15, 30]
-# find_A_pos.R warns if a peak lands on the window edge - that means the true peak is
-# probably outside the window, so widen it rather than trusting the result.
-A_site_window: [-20, -10] 
-
-
-# Whole-codon correction (nt, a multiple of 3) added to the offsets inferred from
-# the start-codon peak. That inference assumes the AUG sits in the P site, true
-# of a monosome but not of a disome, whose leading ribosome has moved past the
-# start codon. 0 leaves the inferred offsets unchanged.
+# Search window for the start-codon peak (0 = last nt of the AUG): negative for 5p, positive for 3p
+# e.g. monosome 5p [-20, -10], disome 5p [-50, -25], disome 3p [15, 30]
+A_site_window: [-20, -10]
+# Whole-codon shift (multiple of 3) added to the inferred A-site offsets
 A_site_offset_shift: 0
-# Forced uniform A-site offset (nt from the anchored end) at every read length,
-# ignoring the start-codon peak. Leave empty to infer it per length. For disomes,
-# scan it and keep the value that maximises the A-site codon signal (e.g. 15 nt
-# from the 3' end, Arpat et al. Genome Res 2020). Exclusive with A_site_offset_shift.
+# Uniform A-site offset (nt) used at every length instead of the inferred one; empty = infer
 A_site_fixed_offset: ""
-
-# Fits to leave out of rule all and the summary tables, as sample -> list of
-# pairs, e.g. {"MySample_RIBO": ["24:25"]}. Use it for a fit that does not
-# converge within the wall clock, so it stops blocking the tables; only that
-# sample's columns for that pair are dropped.
+# Fits to skip, as sample -> list of pairs, e.g. {"MySample_RIBO": ["24:25"]}
 exclude_fits: {}

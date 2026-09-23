@@ -1,50 +1,10 @@
 #!/usr/bin/env Rscript
-## Find the A-site offset per fragment length from the start-codon pileup.
-##
-## COORDINATE CONVENTION (this is where it is easy to go wrong)
-## -----------------------------------------------------------
-## compute_profile_all.pl centres the metagene on field 5 of the GTF
-## start_codon record, i.e. on the LAST nucleotide of the AUG. So metagene
-## position q corresponds to CDS offset q + 2 for a 5'-anchored read, and to
-## CDS offset (q + 2 - L) for a 3'-anchored one.
-##
-## Initiating ribosomes hold the AUG in the P site, so their A-site codon
-## begins at CDS offset 3. CountingFullSeq_Apos.pl needs an offset A with
-##     (read CDS offset) + A = 3            [5p]
-##     (read CDS offset) + L - A = 3        [3p]
-## Both reduce to
-##     A = |q - 1|
-## so the reported offset is the modal 5'/3'-end position shifted by ONE
-## nucleotide, not the modal position itself.
-##
-## Ragged ends put reads at q in {peak-1, peak, peak+1}; subtracting one gives
-## the three reported offsets {peak-2, peak-1, peak}. They are consecutive by
-## construction, one per codon frame, and all three derive from a single peak
-## estimate - so a noisy minor frame cannot pull one of them onto a different
-## tract. CountingFullSeq_Apos.pl looks them up by residue mod 3, which for a
-## read at q equals (q - 1) mod 3, i.e. the residue of its own offset member.
-##
-## Usage:
-##   Rscript find_A_pos.R <start_pos.tsv> <L_1> <L_2> <5p|3p> <out.tsv> <out.pdf> \
-##                        [<win_lo> <win_hi>] [<offset_shift>]
-##
-## OFFSET SHIFT
-## ------------
-## The A = |q - 1| rule above assumes the ribosome under the initiation peak
-## holds the AUG in its P site. That is true of a monosome, but NOT of a
-## disome: the decoding centre to align on belongs to the LEADING ribosome,
-## which has already moved past the start codon, so the rule places the A site
-## some whole number of codons too far upstream. The published disome offset is
-## ~15 nt from the footprint 3\' end (Arpat et al. Genome Res 2020, calibrated
-## by codon enrichment per size class; Han et al. Cell Rep 2020 obtain the same
-## 15 nt from the 5\'-end-to-stop-codon distance), against the 21 nt this rule
-## returns on the Gatfield disome libraries - a 6 nt, i.e. 2 codon, correction.
-##
-## offset_shift is added to the three reported offsets. It must be a multiple
-## of 3: CountingFullSeq_Apos.pl looks offsets up by residue mod 3, so only a
-## whole-codon shift leaves that keying unchanged.
-##
-## Output TSV (no header):  <length>\t<A|res 0>\t<A|res 1>\t<A|res 2>
+## A-site offset per fragment length from the start-codon pileup.
+## Metagene 0 is the last nt of the AUG; for a modal read-end position q the
+## offset is |q - 1|, reported for the three frames {peak-2, peak-1, peak}.
+## Usage: find_A_pos.R <start_pos.tsv> <L1> <L2> <5p|3p> <out.tsv> <out.pdf>
+##        [<win_lo> <win_hi>] [<offset_shift>] [<fixed_offset>]
+## Output (no header): <length> <A res 0> <A res 1> <A res 2>
 
 library(data.table)
 
@@ -57,13 +17,7 @@ out_file_tsv <- args[5]
 out_file_pdf <- args[6]
 win_args     <- if (length(args) >= 8) args[7:8] else NULL
 off_shift    <- if (length(args) >= 9) as.integer(args[9]) else 0L
-## Codon-enrichment calibration mode: ignore the start-codon peak and force a
-## uniform offset F at every length. The three frame members are then
-## {F-1, F, F+1}, i.e. exactly what the peak-based path produces for
-## peak = F + 1, so the mod-3 keying CountingFullSeq_Apos.pl relies on is
-## unchanged. Scan F and keep whichever maximises the A-site codon signal -
-## this is how Arpat et al. (Genome Res 2020) calibrate disome footprints,
-## and unlike off_shift it does not inherit the peak's per-length jitter.
+## fixed offset: uniform at every length, start-codon peak ignored
 fixed_off    <- if (length(args) >= 10) as.integer(args[10]) else NA_integer_
 if (length(args) >= 10 && is.na(fixed_off))
   stop("fixed_offset must be an integer, got: ", args[10])
@@ -74,12 +28,10 @@ if (is.na(off_shift))
   stop("offset_shift must be an integer, got: ", args[9])
 if (off_shift %% 3L != 0L)
   stop(sprintf(paste0("offset_shift must be a whole number of codons (a multiple ",
-                      "of 3), got %+d - see the OFFSET SHIFT comment in this script"),
+                      "of 3), got %+d"),
                off_shift))
 
-## --------------------------------------------------------------------------
-## read + row-normalise pileup, then average per length
-## --------------------------------------------------------------------------
+## pileup, row-normalised and averaged per length
 
 table_pos  <- fread(start_pos, sep = "\t", stringsAsFactors = FALSE)[, -203]
 length_pos <- as.numeric(gsub("L:", "", table_pos$V1))
@@ -98,18 +50,7 @@ rownames(sum_pos.l) <- as.character(c(-100:0, 1:100))
 l <- as.character(L_1:L_2)
 l <- l[l %in% colnames(sum_pos.l)]
 
-## --------------------------------------------------------------------------
-## Search window for the initiation peak. A ~30 nt footprint with the A site
-## ~15 nt from the 5' end puts the 5'-anchored peak near -14; +/- 5 nt around
-## that. In 3p-anchored mode the mirrored logic gives a window around +15.
-## --------------------------------------------------------------------------
-
-## Taken from config.yaml (A_site_window) when supplied; the old hard-coded
-## monosome defaults are kept as a fallback. The window is in METAGENE
-## coordinates (0 = last nt of the AUG), so its sign has to match A_site_end:
-## a 5'-anchored read sits upstream of the AUG (negative), a 3'-anchored one
-## downstream (positive). Getting that pairing wrong used to fail silently, so
-## it is now an error.
+## search window for the initiation peak (metagene coordinates; sign must match A_site_end)
 if (!is.null(win_args)) {
   window <- as.integer(win_args)
   if (any(is.na(window)))
@@ -136,9 +77,7 @@ if (is.na(fixed_off)) {
                   A_site_end, fixed_off))
 }
 
-## --------------------------------------------------------------------------
-## one peak per length -> three consecutive offsets, one per frame
-## --------------------------------------------------------------------------
+## one peak per length -> three offsets, one per frame
 
 consensus_per_length <- lapply(l, function(L) {
   dens <- sum_pos.l[, L]
@@ -156,18 +95,7 @@ consensus_per_length <- lapply(l, function(L) {
 })
 names(consensus_per_length) <- l
 
-## --------------------------------------------------------------------------
-## per-length diagnostic PDF: bars coloured by codon frame, the peak circled
-## and the three reported offsets starred
-## --------------------------------------------------------------------------
-
-## Plotted in metagene coordinates (not row indices), over a range wide enough
-## to contain the peak wherever it actually is. The old fixed xlim = c(70, 130)
-## was in index units, i.e. -31..+29, which cut off the initiation peak of any
-## fragment long enough to reach further upstream - a 64 nt disome peaks near
-## -42 and was simply off the page, so a window sitting on noise looked fine.
-## The search window is now shaded and the global maximum of the plotted range
-## dashed, so a peak outside the window is visible at a glance.
+## diagnostic PDF: pileup per length coloured by frame, search window shaded
 pdf(out_file_pdf)
 par(mfrow = c(2, 2), pty = "s")
 pp <- as.integer(rownames(sum_pos.l))
@@ -211,10 +139,7 @@ for (L in l) {
 }
 dev.off()
 
-## --------------------------------------------------------------------------
-## write inferred.tsv, columns ordered by residue mod 3 (the key used by
-## CountingFullSeq_Apos.pl)
-## --------------------------------------------------------------------------
+## inferred offsets, columns ordered by residue mod 3
 
 A_pos <- t(sapply(consensus_per_length, function(x)
   abs(c(x$off[["0"]], x$off[["1"]], x$off[["2"]]))))

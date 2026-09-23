@@ -1,21 +1,6 @@
 #!/usr/bin/env Rscript
-## Diagnostic: start-codon metagene profile for EVERY fragment length, plotted
-## over a wide window so a peak anywhere in the pile-up is visible.
-##
-## Unlike find_A_pos.R this does no peak selection and applies no search
-## window, and it plots every length present rather than only L1:L2. That is
-## what is needed to CHOOSE the size range and the search window: a population
-## outside the current thresholds is invisible in the find_A_pos.R output.
-##
-## compute_profile_all.pl records the read end named by A_site_end: the 5' end
-## ($b[3]) for 5p, the 3' end ($b[3] + $length) for 3p. So the pile-up is in
-## whichever anchored coordinate the run used, and the OTHER end is at
-## peak +/- L. Both are shown, because the one that comes out flat against
-## length identifies which end the population is really anchored on.
-##
-## Usage:
-##   Rscript plot_A_site_profiles.R <A_site_pos.tsv> <out.pdf> \
-##                                  [xlo xhi] [win_lo win_hi] [5p|3p]
+## Diagnostic: start-codon metagene profile of every fragment length, at both read ends.
+## Usage: plot_A_site_profiles.R <A_site_pos.tsv> <out.pdf> [xlo xhi] [win_lo win_hi] [5p|3p]
 
 suppressMessages(library(data.table))
 args <- commandArgs(trailingOnly = TRUE)
@@ -29,8 +14,7 @@ anchor <- if (A_site_end == "3p") "3'" else "5'"
 other  <- if (A_site_end == "3p") "5'" else "3'"
 sgn    <- if (A_site_end == "3p") -1L else 1L
 
-## median() of an even number of lengths returns a half-integer, which "%d"
-## refuses; print it as-is instead of rounding away the .5
+## medians can be half-integers
 fsgn <- function(x) sprintf("%+.10g", x)
 
 tp <- fread(inf, sep = "\t", stringsAsFactors = FALSE)[, -203]
@@ -55,8 +39,7 @@ if (!is.null(win)) {
   pwO <- pwA + sgn * Ls
 } else { pwA <- NULL; pwO <- NULL }
 
-## consensus of the in-window peaks (falling back to the global ones): a
-## length deviating from it is flagged, without assuming any particular value
+## consensus of the in-window peaks; lengths deviating from it are flagged
 ref  <- if (!is.null(pwA)) pwA else pkA
 refO <- if (!is.null(pwO)) pwO else pkO
 medA <- median(ref); medO <- median(refO)

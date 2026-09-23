@@ -29,12 +29,7 @@ sub load_cds{
           $stop = (split(/\:/,$attr[2]))[4];
           $strand = (split(/\:/,$attr[2]))[5];
           $comp = "$chr\:$start\-$stop";
-          # Optional shard filter ($list[2] = hashref of contigs to keep, or undef).
-          # Sharding by contig is exact: reads are NH:i:1 so each has a single
-          # locus, and no gene has transcripts on more than one contig, so the
-          # global %read_tot dedup partitions cleanly across shards. Sorting a
-          # subset also preserves the relative order of "sort keys %master",
-          # so the same gene claims each shared read as in a serial run.
+          # optional shard filter: keep only genes on this shard's contigs
           next if defined($list[2]) && !exists($list[2]->{$chr});
           @a = @a[1 .. $#a];
           $seq = join('',@a);
@@ -141,20 +136,12 @@ close $fh;
 						 my $posi = $-[0];
 						 $read_tot{$read[0]}=1;	
 					         my $posi2=$posi;
-						 # Key into the A-site offset table. find_A_pos.R keys the three
-						 # offsets by their own residue mod 3, which equals (CDS offset) mod 3
-						 # for a 5'-anchored read and (CDS offset + length) mod 3 for a
-						 # 3'-anchored one - otherwise the 120 nt window comes out of frame.
+						 # offsets are keyed by residue mod 3 of the anchored read end
 						 my $frame = ($a_site_end eq '5p') ? $posi % 3 : ($posi + $length) % 3;
 
-						 # No offset inferred for this fragment length: drop the read rather
-						 # than silently treating the missing offset as zero.
+						 # no offset for this length: drop the read
 						 next unless exists $As_pos{$length} and defined $As_pos{$length}{$frame};
-							# A-site position in the CDS: offset counted from the 5' end, or
-							# back from the 3' end. The 120 nt window starts 25 codons
-							# (75 nt) upstream of it. The reported position must be this
-							# same A-site; it used to be 5' end + offset in both modes,
-							# which is wrong for 3'-anchored reads.
+							# A-site position; the 120 nt window starts 75 nt upstream of it
 							my $a_pos = ($a_site_end eq '5p')
 							          ? $posi2 + $As_pos{$length}{$frame}
 							          : $posi2 + $l - $As_pos{$length}{$frame};

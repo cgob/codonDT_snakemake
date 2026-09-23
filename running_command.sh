@@ -1,9 +1,5 @@
 #!/bin/sh
-# Run snakemake from the ACTIVE conda environment.
-# A stale "pip install --user" snakemake (5.4.2, spack python 3.6) sits in
-# ~/.local/bin and can win on PATH, failing with a pkg_resources/urllib3 error.
-# Calling $CONDA_PREFIX/bin/snakemake explicitly sidesteps whatever PATH order
-# the shell ends up with.
+# Use the snakemake of the active conda env, not a stale one earlier on PATH.
 
 if [ -z "$CONDA_PREFIX" ]; then
     echo "No conda environment active. Run: conda activate Ribo_DT" >&2

@@ -41,37 +41,22 @@ SAMPLES=df.SAMPLES.unique()
 RIBO_SAMPLES=[x for x in SAMPLES if "RIBO" in x]
 
 #### UMI / PCR-deduplication settings ####
-# When enabled, raw fastq go through adapter trimming + UMI deduplication
-# (Script/DedupUMI.pl) before STAR. When disabled the merged fastq is mapped
-# directly, so the SRA route keeps working unchanged.
 UMI = config.get('umi', {}) or {}
 UMI_ENABLED = bool(UMI.get('enabled', False))
 
 #### Parallelisation of the read counting ####
-# countreads is the pipeline bottleneck: one samtools view per transcript.
-# It is sharded by contig, which is exact rather than approximate (see the
-# comment in Script/CountingFullSeq_Apos.pl). Shard membership is computed by
-# Script/make_shards.py; only the shard COUNT has to be known at parse time.
+# split by contig (exact); shard membership from Script/make_shards.py
 N_SHARDS = int(config.get('count_shards', 25))
 SHARDS = [str(i) for i in range(N_SHARDS)]
 
 #### A-site initiation-peak search window ####
-# Metagene coordinates (0 = last nt of the AUG). Sign must match A_site_end;
-# find_A_pos.R errors out if it does not. Falls back to the historical
-# monosome defaults when the key is absent from config.yaml.
+# metagene coordinates (0 = last nt of the AUG); sign must match A_site_end
 A_SITE_WINDOW = config.get('A_site_window')
 if not A_SITE_WINDOW:
     A_SITE_WINDOW = [-20, -10] if config['A_site_end'] == '5p' else [10, 20]
 A_SITE_WINDOW = [int(A_SITE_WINDOW[0]), int(A_SITE_WINDOW[1])]
 
-#### Whole-codon correction to the inferred A-site offset ####
-# find_A_pos.R derives the offset from the start-codon peak assuming the AUG
-# sits in the P site. That holds for a monosome but not for a disome, whose
-# leading ribosome has moved past the start codon; see the OFFSET SHIFT comment
-# in Script/find_A_pos.R. Must be a multiple of 3.
-# Codon-enrichment calibration: when set, the start-codon peak is ignored and
-# this uniform offset is used at every fragment length. Scan it and keep the
-# value that maximises the A-site codon signal (Arpat et al. Genome Res 2020).
+#### A-site offset: whole-codon shift or fixed uniform offset ####
 A_SITE_FIXED_OFFSET = config.get('A_site_fixed_offset', '')
 A_SITE_OFFSET_SHIFT = int(config.get('A_site_offset_shift', 0))
 if A_SITE_OFFSET_SHIFT % 3 != 0:
@@ -95,9 +80,7 @@ def get_rna_from_ribo(wildcards):
 
 
 def get_merged_fastq(wildcards):
-    # Pre-merged libraries are often kept gzipped (and may be symlinks to a
-    # read-only location, so they cannot be decompressed in place). cutadapt
-    # reads .gz directly, so hand the compressed file straight to dedup_umi.
+    # pre-merged fastq may be kept gzipped; cutadapt reads .gz directly
     merged = "Data/Raw/" + wildcards.sample + ".fastq.merge"
     if not os.path.exists(merged) and os.path.exists(merged + ".gz"):
         return merged + ".gz"
@@ -118,14 +101,7 @@ def get_AsiteRNA_from_ribo(wildcards):
 
 pair_pos = ['24:25','25:26','24:26']
 
-### Fits to leave out of the DAG ###
-# config['exclude_fits'] maps a sample to the pairs to skip. A fit that never
-# converges inside the wall clock would otherwise block rule all and
-# output_table together, since both ask for the full sample x pair grid.
-# OutputTable.R tolerates a ragged grid -- rbindlist(fill=TRUE) plus column
-# names derived per input file -- so dropping one combination only drops its
-# columns from the summary tables and leaves the same pair intact for every
-# other sample.
+### Fits to leave out of the DAG (config['exclude_fits']) ###
 EXCLUDE_FITS = config.get('exclude_fits', {}) or {}
 
 def fit_targets(template):
@@ -207,7 +183,6 @@ rule mergefastq:
 ##  Adapter trimming and UMI PCR-deduplication         ##
 ##----------------------------------------------------##
 ## Only part of the DAG when config['umi']['enabled'] is true.
-## Read layout: 5'-[UMI left][insert][UMI right][3' adapter]-3'
 
 rule dedup_umi:
     input:
@@ -314,11 +289,7 @@ rule findAsite:
 ##------------------------------------------------------##
 ##  A-site profile diagnostic, all lengths, wide window ##
 ##------------------------------------------------------##
-## Independent of L1/L2 and of A_site_window: it plots every length present
-## in the pile-up over a wide range, with no peak selection. That is what is
-## needed to CHOOSE the size window and the search window in the first place -
-## find_A_pos.R only ever plots L1:L2, so a population outside the current
-## thresholds is invisible there.
+## Every length present, no peak selection: use it to choose L1/L2 and A_site_window
 
 rule plot_A_site_profiles:
     input:
@@ -388,9 +359,6 @@ rule parsecds:
 ##--------------------------------------------------##
 ## Cache of every in-frame 40-codon CDS window       ##
 ##--------------------------------------------------##
-## Its own rule on purpose: LoadAndGenData.R used to build this behind an
-## "if (!file.exists)" guard, so the parallel loaddata jobs all raced to write
-## the same file and readers died on a half-written RData.
 
 rule prep_cds_rdata:
     input:
