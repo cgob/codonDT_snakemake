@@ -5,6 +5,15 @@
 **Ribo-DT** consists of a `Snakefile`, a [`conda`](https://conda.io/docs/) environment file (`Ribo_DT.yaml`), a configuration file (`config.yaml`) and a set of `R` and `perl` scripts to infer ribosome dwell times and gene flux from raw ribosome profiling data.
 
 
+## What's new in Ribo-DT 2.0
+
+- **Faster read counting.** `countreads` is split into `count_shards` contig groups run in parallel. Sharding by contig is exact (identical output to a serial run) and about 20x faster on a mammalian genome.
+- **Optional UMI deduplication.** With `umi: enabled: true`, PCR duplicates are collapsed on the insert plus both UMIs before mapping (see below).
+- **Disome support in A-site assignment.** Offsets can be anchored on either read end (`A_site_end`), searched in a configurable window (`A_site_window`), shifted by whole codons (`A_site_offset_shift`), or forced to one uniform value at every length (`A_site_fixed_offset`, e.g. 15 nt from the 3' end for disomes).
+- **A-site diagnostic per sample.** `Data/A_site_offset/<sample>_A_site_profiles.pdf` shows the start-codon pile-up per read length, to check the offsets before fitting.
+- **Skipping fits.** `exclude_fits` removes a sample/pair fit that does not converge, without blocking the summary tables.
+- **Fixes.** The read-length bounds `L1`/`L2` are now inclusive, and the A-site position reported for 3'-anchored reads is now correct. The default fit wall time in `cluster.json` is 6 h.
+
 ## Ribo-DT pipeline overview
 
 1. Download the genome, cds and gtf files from [`ENSEMBL`](https://www.ensembl.org/index.html) according to the species defined in the configuration file (`config.yaml`).  
@@ -71,6 +80,11 @@ Edit the configuration file (`config.yaml`). Set:
 11. `filter_2` with p-value threshold for dwell times in the heatmap representation.
 12. A_site_end with `5p` or `3p` defining which read ends to use to compute A site offsets from the pile-up densities at the start codons.
 13. `umi` if your libraries carry unique molecular identifiers (see below). Leave `enabled: false` otherwise.
+14. `count_shards` with the number of parallel jobs the read counting is split into (default 25).
+15. `A_site_window` with the range of positions, relative to the start codon, searched for the pile-up peak.
+16. `A_site_offset_shift` with a whole-codon correction (multiple of 3) added to the inferred offsets (0 by default).
+17. `A_site_fixed_offset` with a uniform offset used at every read length instead of the inferred one (empty by default).
+18. `exclude_fits` with fits to skip, as sample -> list of pairs (empty by default).
 
 **UMI-based PCR deduplication (optional)**
 For libraries built with UMIs at both ends of the insert, set `umi: enabled: true` in `config.yaml`. The
