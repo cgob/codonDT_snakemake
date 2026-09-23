@@ -16,6 +16,7 @@ import glob
 import numpy as np
 import os
 import re
+from snakemake.exceptions import WorkflowError
 
 #### Load configuration and sample sheet ####
 configfile: "config.yaml"
@@ -62,6 +63,21 @@ A_SITE_WINDOW = config.get('A_site_window')
 if not A_SITE_WINDOW:
     A_SITE_WINDOW = [-20, -10] if config['A_site_end'] == '5p' else [10, 20]
 A_SITE_WINDOW = [int(A_SITE_WINDOW[0]), int(A_SITE_WINDOW[1])]
+
+#### Whole-codon correction to the inferred A-site offset ####
+# find_A_pos.R derives the offset from the start-codon peak assuming the AUG
+# sits in the P site. That holds for a monosome but not for a disome, whose
+# leading ribosome has moved past the start codon; see the OFFSET SHIFT comment
+# in Script/find_A_pos.R. Must be a multiple of 3.
+# Codon-enrichment calibration: when set, the start-codon peak is ignored and
+# this uniform offset is used at every fragment length. Scan it and keep the
+# value that maximises the A-site codon signal (Arpat et al. Genome Res 2020).
+A_SITE_FIXED_OFFSET = config.get('A_site_fixed_offset', '')
+A_SITE_OFFSET_SHIFT = int(config.get('A_site_offset_shift', 0))
+if A_SITE_OFFSET_SHIFT % 3 != 0:
+    raise WorkflowError(
+        "A_site_offset_shift must be a whole number of codons (a multiple of 3), "
+        "got %+d" % A_SITE_OFFSET_SHIFT)
 
 ### Function definition ###
 
@@ -272,9 +288,11 @@ rule findAsite:
         L2 = config["L2"],
         A_site_end = config["A_site_end"],
         win_lo = A_SITE_WINDOW[0],
-        win_hi = A_SITE_WINDOW[1]
+        win_hi = A_SITE_WINDOW[1],
+        off_shift = A_SITE_OFFSET_SHIFT,
+        fixed_off = A_SITE_FIXED_OFFSET
     wildcard_constraints: sample=".*RIBO.*"   
-    shell: "Rscript {homedir}Script/find_A_pos.R {input.A_site} {params.L1} {params.L2} {params.A_site_end} {output.tsv} {output.pdf} {params.win_lo} {params.win_hi}"
+    shell: "Rscript {homedir}Script/find_A_pos.R {input.A_site} {params.L1} {params.L2} {params.A_site_end} {output.tsv} {output.pdf} {params.win_lo} {params.win_hi} {params.off_shift} {params.fixed_off}"
 
 
 ##------------------------------------------------------##

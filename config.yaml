@@ -60,3 +60,13 @@ A_site_end: "5p"
 # probably outside the window, so widen it rather than trusting the result.
 A_site_window: [-20, -10] 
 
+# Whole-codon correction (nt, a multiple of 3) added to the offsets inferred from
+# the start-codon peak. That inference assumes the AUG sits in the P site, true
+# of a monosome but not of a disome, whose leading ribosome has moved past the
+# start codon. 0 leaves the inferred offsets unchanged.
+A_site_offset_shift: 0
+# Forced uniform A-site offset (nt from the anchored end) at every read length,
+# ignoring the start-codon peak. Leave empty to infer it per length. For disomes,
+# scan it and keep the value that maximises the A-site codon signal (e.g. 15 nt
+# from the 3' end, Arpat et al. Genome Res 2020). Exclusive with A_site_offset_shift.
+A_site_fixed_offset: ""

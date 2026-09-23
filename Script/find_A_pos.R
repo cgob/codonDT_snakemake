@@ -26,7 +26,23 @@
 ##
 ## Usage:
 ##   Rscript find_A_pos.R <start_pos.tsv> <L_1> <L_2> <5p|3p> <out.tsv> <out.pdf> \
-##                        [<win_lo> <win_hi>]
+##                        [<win_lo> <win_hi>] [<offset_shift>]
+##
+## OFFSET SHIFT
+## ------------
+## The A = |q - 1| rule above assumes the ribosome under the initiation peak
+## holds the AUG in its P site. That is true of a monosome, but NOT of a
+## disome: the decoding centre to align on belongs to the LEADING ribosome,
+## which has already moved past the start codon, so the rule places the A site
+## some whole number of codons too far upstream. The published disome offset is
+## ~15 nt from the footprint 3\' end (Arpat et al. Genome Res 2020, calibrated
+## by codon enrichment per size class; Han et al. Cell Rep 2020 obtain the same
+## 15 nt from the 5\'-end-to-stop-codon distance), against the 21 nt this rule
+## returns on the Gatfield disome libraries - a 6 nt, i.e. 2 codon, correction.
+##
+## offset_shift is added to the three reported offsets. It must be a multiple
+## of 3: CountingFullSeq_Apos.pl looks offsets up by residue mod 3, so only a
+## whole-codon shift leaves that keying unchanged.
 ##
 ## Output TSV (no header):  <length>\t<A|res 0>\t<A|res 1>\t<A|res 2>
 
@@ -40,6 +56,26 @@ A_site_end   <- args[4]
 out_file_tsv <- args[5]
 out_file_pdf <- args[6]
 win_args     <- if (length(args) >= 8) args[7:8] else NULL
+off_shift    <- if (length(args) >= 9) as.integer(args[9]) else 0L
+## Codon-enrichment calibration mode: ignore the start-codon peak and force a
+## uniform offset F at every length. The three frame members are then
+## {F-1, F, F+1}, i.e. exactly what the peak-based path produces for
+## peak = F + 1, so the mod-3 keying CountingFullSeq_Apos.pl relies on is
+## unchanged. Scan F and keep whichever maximises the A-site codon signal -
+## this is how Arpat et al. (Genome Res 2020) calibrate disome footprints,
+## and unlike off_shift it does not inherit the peak's per-length jitter.
+fixed_off    <- if (length(args) >= 10) as.integer(args[10]) else NA_integer_
+if (length(args) >= 10 && is.na(fixed_off))
+  stop("fixed_offset must be an integer, got: ", args[10])
+if (!is.na(fixed_off) && off_shift != 0L)
+  stop("fixed_offset and offset_shift are mutually exclusive: the forced offset ",
+       "is already absolute, shifting it as well is almost certainly a mistake")
+if (is.na(off_shift))
+  stop("offset_shift must be an integer, got: ", args[9])
+if (off_shift %% 3L != 0L)
+  stop(sprintf(paste0("offset_shift must be a whole number of codons (a multiple ",
+                      "of 3), got %+d - see the OFFSET SHIFT comment in this script"),
+               off_shift))
 
 ## --------------------------------------------------------------------------
 ## read + row-normalise pileup, then average per length
@@ -91,8 +127,14 @@ if (A_site_end == "3p" && window[1] < 0)
   stop(sprintf(paste0("A_site_end is 3p (read 3' end, downstream of the AUG) but ",
                       "A_site_window = [%d, %d] is not positive. See the ",
                       "A_site_window comment in config.yaml."), window[1], window[2]))
-message(sprintf("A_site_end = %s, search window = [%+d, %+d]",
-                A_site_end, window[1], window[2]))
+if (is.na(fixed_off)) {
+  message(sprintf("A_site_end = %s, search window = [%+d, %+d], offset shift = %+d nt",
+                  A_site_end, window[1], window[2], off_shift))
+} else {
+  message(sprintf(paste0("A_site_end = %s, FORCED uniform offset = %d nt at every ",
+                         "length (start-codon peak ignored, search window unused)"),
+                  A_site_end, fixed_off))
+}
 
 ## --------------------------------------------------------------------------
 ## one peak per length -> three consecutive offsets, one per frame
@@ -101,13 +143,14 @@ message(sprintf("A_site_end = %s, search window = [%+d, %+d]",
 consensus_per_length <- lapply(l, function(L) {
   dens <- sum_pos.l[, L]
   names(dens) <- rownames(sum_pos.l)
-  peak <- as.integer(names(which.max(dens[as.character(window[1]:window[2])])))
-  if (peak %in% window) {
+  peak <- if (!is.na(fixed_off)) fixed_off + 1L else
+            as.integer(names(which.max(dens[as.character(window[1]:window[2])])))
+  if (is.na(fixed_off) && peak %in% window) {
     message(sprintf(paste0("WARNING: L = %s: peak sits on the edge of the search ",
                            "window (%+d in [%+d, %+d]); the true peak may lie outside"),
                     L, peak, window[1], window[2]))
   }
-  members <- c(peak - 2L, peak - 1L, peak)     # modal positions minus one
+  members <- c(peak - 2L, peak - 1L, peak) + off_shift   # modal positions minus one
   list(peak = peak,
        off  = setNames(members, as.character(members %% 3L)))
 })
