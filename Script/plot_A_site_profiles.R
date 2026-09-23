@@ -29,6 +29,10 @@ anchor <- if (A_site_end == "3p") "3'" else "5'"
 other  <- if (A_site_end == "3p") "5'" else "3'"
 sgn    <- if (A_site_end == "3p") -1L else 1L
 
+## median() of an even number of lengths returns a half-integer, which "%d"
+## refuses; print it as-is instead of rounding away the .5
+fsgn <- function(x) sprintf("%+.10g", x)
+
 tp <- fread(inf, sep = "\t", stringsAsFactors = FALSE)[, -203]
 lp <- as.numeric(gsub("L:", "", tp$V1)); tp <- tp[, -1]
 pos <- c(-100:0, 1:100); colnames(tp) <- as.character(pos)
@@ -71,14 +75,14 @@ plot(Ls, ref, pch = 19, col = "darkblue", xlab = "Fragment length (nt)",
      main = sprintf("%s end (the anchored coordinate)", anchor))
 abline(h = medA, col = "darkgreen", lty = 2)
 legend("bottomleft", bty = "n", cex = 0.7,
-       legend = sprintf("median %+d; flat here = %s-end anchored", medA, anchor))
+       legend = sprintf("median %s; flat here = %s-end anchored", fsgn(medA), anchor))
 
 plot(Ls, refO, pch = 19, col = "darkred", xlab = "Fragment length (nt)",
      ylab = sprintf("implied %s-end position", other),
      main = sprintf("%s end (peak %s L)", other, if (sgn > 0) "+" else "-"))
 abline(h = medO, col = "darkgreen", lty = 2)
 legend("topleft", bty = "n", cex = 0.7,
-       legend = sprintf("median %+d; flat here = %s-end anchored", medO, other))
+       legend = sprintf("median %s; flat here = %s-end anchored", fsgn(medO), other))
 
 plot(Ls, ntx, type = "h", lwd = 4, col = "grey55",
      xlab = "Fragment length (nt)", ylab = "Transcripts contributing",
@@ -105,7 +109,7 @@ for (j in seq_along(Ls)) {
         col = if (abs(pkA[j] - medA) <= 2) "darkgreen" else "red")
   if (!is.null(pwA)) {
     points(pwA[j], m[as.character(pwA[j]), j], pch = 1, cex = 2, lwd = 2, col = "blue")
-    mtext(sprintf("in-window %+d  ->  %s end %+d   (median %+d)", pwA[j], other, pwO[j], medA),
+    mtext(sprintf("in-window %+d  ->  %s end %+d   (median %s)", pwA[j], other, pwO[j], fsgn(medA)),
           side = 3, line = -2.1, cex = 0.6,
           col = if (abs(pwA[j] - medA) <= 2) "darkgreen" else "red")
   }
