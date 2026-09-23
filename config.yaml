@@ -60,6 +60,7 @@ A_site_end: "5p"
 # probably outside the window, so widen it rather than trusting the result.
 A_site_window: [-20, -10] 
 
+
 # Whole-codon correction (nt, a multiple of 3) added to the offsets inferred from
 # the start-codon peak. That inference assumes the AUG sits in the P site, true
 # of a monosome but not of a disome, whose leading ribosome has moved past the
@@ -70,3 +71,9 @@ A_site_offset_shift: 0
 # scan it and keep the value that maximises the A-site codon signal (e.g. 15 nt
 # from the 3' end, Arpat et al. Genome Res 2020). Exclusive with A_site_offset_shift.
 A_site_fixed_offset: ""
+
+# Fits to leave out of rule all and the summary tables, as sample -> list of
+# pairs, e.g. {"MySample_RIBO": ["24:25"]}. Use it for a fit that does not
+# converge within the wall clock, so it stops blocking the tables; only that
+# sample's columns for that pair are dropped.
+exclude_fits: {}

@@ -118,12 +118,28 @@ def get_AsiteRNA_from_ribo(wildcards):
 
 pair_pos = ['24:25','25:26','24:26']
 
+### Fits to leave out of the DAG ###
+# config['exclude_fits'] maps a sample to the pairs to skip. A fit that never
+# converges inside the wall clock would otherwise block rule all and
+# output_table together, since both ask for the full sample x pair grid.
+# OutputTable.R tolerates a ragged grid -- rbindlist(fill=TRUE) plus column
+# names derived per input file -- so dropping one combination only drops its
+# columns from the summary tables and leaves the same pair intact for every
+# other sample.
+EXCLUDE_FITS = config.get('exclude_fits', {}) or {}
+
+def fit_targets(template):
+    return [template.format(sample=s, pair=p)
+            for s in SAMPLES
+            for p in pair_pos
+            if p not in set(EXCLUDE_FITS.get(s, []))]
+
 ##--------------------------------------##
 ##  Target rule                         ##
 ##--------------------------------------##
 rule all:
      input:
-        expand("Data/Fit/{sample}_plot_{pair}.pdf", sample=SAMPLES , pair= pair_pos), "Data/Tables/summary_flux.tsv", "Data/Tables/summary_single_DT.tsv", "Data/Tables/summary_pair_DT.tsv", expand("Data/A_site_offset/{sample}_A_site_profiles.pdf", sample=RIBO_SAMPLES)
+        fit_targets("Data/Fit/{sample}_plot_{pair}.pdf"), "Data/Tables/summary_flux.tsv", "Data/Tables/summary_single_DT.tsv", "Data/Tables/summary_pair_DT.tsv", expand("Data/A_site_offset/{sample}_A_site_profiles.pdf", sample=RIBO_SAMPLES)
 ##--------------------------------------##
 ##  Download gtf from Ensembl           ##
 ##--------------------------------------##
@@ -459,7 +475,7 @@ rule heatmap:
 
 rule output_table:
     input:
-        expand("Data/Fit/{sample}_coe_pval_{pair}.RData", sample=SAMPLES , pair= pair_pos)
+        fit_targets("Data/Fit/{sample}_coe_pval_{pair}.RData")
     output:
         "Data/Tables/summary_flux.tsv", "Data/Tables/summary_single_DT.tsv", "Data/Tables/summary_pair_DT.tsv"
     shell: "Rscript {homedir}Script/OutputTable.R {input}"
