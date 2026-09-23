@@ -150,24 +150,25 @@ close $fh;
 						 # No offset inferred for this fragment length: drop the read rather
 						 # than silently treating the missing offset as zero.
 						 next unless exists $As_pos{$length} and defined $As_pos{$length}{$frame};
-							my $shift_pos;
-
-							if($a_site_end eq '5p'){
-							 $shift_pos = $posi2 + $As_pos{$length}{$frame} - 15 - 60;
-							}
-							else{
-							 $shift_pos = $posi2 + $l - $As_pos{$length}{$frame} - 15 - 60;
-							}
+							# A-site position in the CDS: offset counted from the 5' end, or
+							# back from the 3' end. The 120 nt window starts 25 codons
+							# (75 nt) upstream of it. The reported position must be this
+							# same A-site; it used to be 5' end + offset in both modes,
+							# which is wrong for 3'-anchored reads.
+							my $a_pos = ($a_site_end eq '5p')
+							          ? $posi2 + $As_pos{$length}{$frame}
+							          : $posi2 + $l - $As_pos{$length}{$frame};
+							my $shift_pos = $a_pos - 15 - 60;
 
 					  	 my $rseq_2= substr($master{$k}{$k2}{'seq'}, $shift_pos, 120);
 						 
 							if(exists($codon{$rseq_2})){
 						 	 $codon{$rseq_2}++;
-						 	 $codon_pos{$rseq_2}{'pos'}=$posi2 + $As_pos{$length}{$frame};
+						 	 $codon_pos{$rseq_2}{'pos'}=$a_pos;
 							}else{
 						 	 $codon{$rseq_2}=1;
 						 	 $codon_pos{$rseq_2}{'trans'}=  $k2;	
-						 	 $codon_pos{$rseq_2}{'pos'}=  $posi2 + $As_pos{$length}{$frame};	
+						 	 $codon_pos{$rseq_2}{'pos'}=  $a_pos;	
 							}
 						}
 					
