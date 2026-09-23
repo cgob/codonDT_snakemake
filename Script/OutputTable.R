@@ -33,6 +33,7 @@ load_files=function(files){
     tempi=data.frame(t(get(load(i))))
     rownames(tempi)=c('coef','std.error','t.value','pvalue')
     tempi['coef',] =tempi['coef',]/log(2)
+    tempi['std.error',] =tempi['std.error',]/log(2)
     tempi['pvalue',which(tempi['pvalue',] == 0)]=1e-320
     DD[[a]]=(tempi)
     a=a+1

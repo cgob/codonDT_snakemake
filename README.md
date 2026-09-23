@@ -5,6 +5,15 @@
 **Ribo-DT** consists of a `Snakefile`, a [`conda`](https://conda.io/docs/) environment file (`Ribo_DT.yaml`), a configuration file (`config.yaml`) and a set of `R` and `perl` scripts to infer ribosome dwell times and gene flux from raw ribosome profiling data.
 
 
+## What's new in Ribo-DT 2.0
+
+- **Faster read counting.** `countreads` is split into `count_shards` contig groups run in parallel. Sharding by contig is exact (identical output to a serial run) and about 20x faster on a mammalian genome.
+- **Optional UMI deduplication.** With `umi: enabled: true`, PCR duplicates are collapsed on the insert plus both UMIs before mapping (see below).
+- **Disome support in A-site assignment.** Offsets can be anchored on either read end (`A_site_end`), searched in a configurable window (`A_site_window`), shifted by whole codons (`A_site_offset_shift`), or forced to one uniform value at every length (`A_site_fixed_offset`, e.g. 15 nt from the 3' end for disomes).
+- **A-site diagnostic per sample.** `Data/A_site_offset/<sample>_A_site_profiles.pdf` shows the start-codon pile-up per read length, to check the offsets before fitting.
+- **Skipping fits.** `exclude_fits` removes a sample/pair fit that does not converge, without blocking the summary tables.
+- **Fixes.** The read-length bounds `L1`/`L2` are now inclusive, and the A-site position reported for 3'-anchored reads is now correct. The default fit wall time in `cluster.json` is 6 h.
+
 ## Ribo-DT pipeline overview
 
 1. Download the genome, cds and gtf files from [`ENSEMBL`](https://www.ensembl.org/index.html) according to the species defined in the configuration file (`config.yaml`).  
@@ -12,16 +21,17 @@
 3. Download SRA run files (SRR token) specified in the sample spreadsheet from GEO database.
 4. Convert SRA to FASTQ files.
 5. Merge FASTQ files run from the sample according to the the sample spreadsheet definition.
-6. STAR alignment to genome with inline adapter clipping (defined in the configuration file).
-7. Bam files indexing.
-8. Positions of the 5’-end or 3’-end of the reads at the gene start codon are computed genome-wide for each read size in each frame. Respective density plots are reported for further verification by the user.
-9. Read counts and cds positions are retrieved. The 5’- or 3’-end position of the read is shifted according to the A-site offset specified in the file computed at step 8.
-10. Parse the downloaded cds file to be used as a reference in the GLM fit.
-11. Load the parsed and read count files to generate the matrix for the fit.
-12. Gene and position filtering. Fit the generalized linear model with the `glm4` function.
-13. Compute coefficients p-value and rescale the coefficients according to our convention (see method section in the paper).
-14. Plot single and codon-pair dwell time heatmaps as well as fragment size distribution.
-15. Output tables with p-values, standard errors, t-values and p-values.
+6. Optionally (`umi: enabled: true`), trim the 3'-adapter with `cutadapt` and remove PCR duplicates using the UMIs carried at both read ends, then strip the UMIs.
+7. STAR alignment to genome with inline adapter clipping (defined in the configuration file).
+8. Bam files indexing.
+9. Positions of the 5’-end or 3’-end of the reads at the gene start codon are computed genome-wide for each read size in each frame. Respective density plots are reported for further verification by the user.
+10. Read counts and cds positions are retrieved. The 5’- or 3’-end position of the read is shifted according to the A-site offset specified in the file computed at step 9.
+11. Parse the downloaded cds file to be used as a reference in the GLM fit.
+12. Load the parsed and read count files to generate the matrix for the fit.
+13. Gene and position filtering. Fit the generalized linear model with the `glm4` function.
+14. Compute coefficients p-value and rescale the coefficients according to our convention (see method section in the paper).
+15. Plot single and codon-pair dwell time heatmaps as well as fragment size distribution.
+16. Output tables with p-values, standard errors, t-values and p-values.
 
 Note that when RNA-seq and Ribo-seq are provided for the same sample, RNA-Seq is fitted first and used as an GLM offset in the Ribo-seq fit to reduce library preparation bias. 
 
@@ -62,13 +72,37 @@ Edit the configuration file (`config.yaml`). Set:
 3. `refdir` with the path of the reference genome directory.
 4. `species` with the proper species for your dataset (Mouse, Human, Yeast).  
 5. `adapter` with the 3'-adapter used during library preparation of your dataset.
-6. `L1` with the read size lower bound ( `L1` > reads > `L2` are kept for the fit).  
+6. `L1` with the read size lower bound (reads with `L1` <= length <= `L2` are kept for the fit).  
 7. `L2` with the read size upper bound.  
 8. `library` with 'pos_neg' or 'neg_pos' depending on the strandness configuration of your library preparation.  
 9. `samples` with the tab-delimited file defined above describing your samples.
 10. `filter_1` with filter threshold for the minimum number of reads per gene.
 11. `filter_2` with p-value threshold for dwell times in the heatmap representation.
 12. A_site_end with `5p` or `3p` defining which read ends to use to compute A site offsets from the pile-up densities at the start codons.
+13. `umi` if your libraries carry unique molecular identifiers (see below). Leave `enabled: false` otherwise.
+14. `count_shards` with the number of parallel jobs the read counting is split into (default 25).
+15. `A_site_window` with the range of positions, relative to the start codon, searched for the pile-up peak.
+16. `A_site_offset_shift` with a whole-codon correction (multiple of 3) added to the inferred offsets (0 by default).
+17. `A_site_fixed_offset` with a uniform offset used at every read length instead of the inferred one (empty by default).
+18. `exclude_fits` with fits to skip, as sample -> list of pairs (empty by default).
+
+**UMI-based PCR deduplication (optional)**
+For libraries built with UMIs at both ends of the insert, set `umi: enabled: true` in `config.yaml`. The
+reads are then expected to look like
+
+```
+5'-[UMI left][ insert ][UMI right][3' adapter]-3'
+```
+
+and `Script/DedupUMI.pl` runs between fastq merging and STAR: `cutadapt` removes the `umi: adapter`
+sequence, reads sharing both the same insert **and** the same UMI pair are collapsed to a single copy,
+and the UMIs are then trimmed off. Per-sample statistics (reads in, kept, duplicates, too short) are
+written to `Data/Raw/<sample>.dedup.log`. Set `umi: left` / `umi: right` to the UMI lengths in
+nucleotides and `umi: min_insert` to the shortest insert worth keeping.
+
+With `enabled: false` the merged fastq goes straight to STAR, so downloading and analysing SRA runs works
+exactly as before. The two settings are independent of the entry point: UMI-carrying runs fetched from
+SRA/GEO can be deduplicated the same way.
 
 **Running the pipeline**
 ```

@@ -14,7 +14,9 @@
 import pandas as pd
 import glob 
 import numpy as np
+import os
 import re
+from snakemake.exceptions import WorkflowError
 
 #### Load configuration and sample sheet ####
 configfile: "config.yaml"
@@ -36,6 +38,46 @@ homedir=config['homedir']
 workdir: config['workdir'] 
 
 SAMPLES=df.SAMPLES.unique()
+RIBO_SAMPLES=[x for x in SAMPLES if "RIBO" in x]
+
+#### UMI / PCR-deduplication settings ####
+# When enabled, raw fastq go through adapter trimming + UMI deduplication
+# (Script/DedupUMI.pl) before STAR. When disabled the merged fastq is mapped
+# directly, so the SRA route keeps working unchanged.
+UMI = config.get('umi', {}) or {}
+UMI_ENABLED = bool(UMI.get('enabled', False))
+
+#### Parallelisation of the read counting ####
+# countreads is the pipeline bottleneck: one samtools view per transcript.
+# It is sharded by contig, which is exact rather than approximate (see the
+# comment in Script/CountingFullSeq_Apos.pl). Shard membership is computed by
+# Script/make_shards.py; only the shard COUNT has to be known at parse time.
+N_SHARDS = int(config.get('count_shards', 25))
+SHARDS = [str(i) for i in range(N_SHARDS)]
+
+#### A-site initiation-peak search window ####
+# Metagene coordinates (0 = last nt of the AUG). Sign must match A_site_end;
+# find_A_pos.R errors out if it does not. Falls back to the historical
+# monosome defaults when the key is absent from config.yaml.
+A_SITE_WINDOW = config.get('A_site_window')
+if not A_SITE_WINDOW:
+    A_SITE_WINDOW = [-20, -10] if config['A_site_end'] == '5p' else [10, 20]
+A_SITE_WINDOW = [int(A_SITE_WINDOW[0]), int(A_SITE_WINDOW[1])]
+
+#### Whole-codon correction to the inferred A-site offset ####
+# find_A_pos.R derives the offset from the start-codon peak assuming the AUG
+# sits in the P site. That holds for a monosome but not for a disome, whose
+# leading ribosome has moved past the start codon; see the OFFSET SHIFT comment
+# in Script/find_A_pos.R. Must be a multiple of 3.
+# Codon-enrichment calibration: when set, the start-codon peak is ignored and
+# this uniform offset is used at every fragment length. Scan it and keep the
+# value that maximises the A-site codon signal (Arpat et al. Genome Res 2020).
+A_SITE_FIXED_OFFSET = config.get('A_site_fixed_offset', '')
+A_SITE_OFFSET_SHIFT = int(config.get('A_site_offset_shift', 0))
+if A_SITE_OFFSET_SHIFT % 3 != 0:
+    raise WorkflowError(
+        "A_site_offset_shift must be a whole number of codons (a multiple of 3), "
+        "got %+d" % A_SITE_OFFSET_SHIFT)
 
 ### Function definition ###
 
@@ -52,6 +94,22 @@ def get_rna_from_ribo(wildcards):
         return "Data/Fit/" + sample_rna + "_fit_" + str(wildcards.pair) + ".RData"
 
 
+def get_merged_fastq(wildcards):
+    # Pre-merged libraries are often kept gzipped (and may be symlinks to a
+    # read-only location, so they cannot be decompressed in place). cutadapt
+    # reads .gz directly, so hand the compressed file straight to dedup_umi.
+    merged = "Data/Raw/" + wildcards.sample + ".fastq.merge"
+    if not os.path.exists(merged) and os.path.exists(merged + ".gz"):
+        return merged + ".gz"
+    return merged
+
+
+def get_star_fastq(wildcards):
+    if UMI_ENABLED:
+        return "Data/Raw/" + wildcards.sample + ".fastq.dedup"
+    return "Data/Raw/" + wildcards.sample + ".fastq.merge"
+
+
 def get_AsiteRNA_from_ribo(wildcards):
     sample_name = str(wildcards.sample)
     return "Data/A_site_offset/" + re.sub("RNA", "RIBO", sample_name) + "_A_site_pos_inferred.tsv"
@@ -60,12 +118,28 @@ def get_AsiteRNA_from_ribo(wildcards):
 
 pair_pos = ['24:25','25:26','24:26']
 
+### Fits to leave out of the DAG ###
+# config['exclude_fits'] maps a sample to the pairs to skip. A fit that never
+# converges inside the wall clock would otherwise block rule all and
+# output_table together, since both ask for the full sample x pair grid.
+# OutputTable.R tolerates a ragged grid -- rbindlist(fill=TRUE) plus column
+# names derived per input file -- so dropping one combination only drops its
+# columns from the summary tables and leaves the same pair intact for every
+# other sample.
+EXCLUDE_FITS = config.get('exclude_fits', {}) or {}
+
+def fit_targets(template):
+    return [template.format(sample=s, pair=p)
+            for s in SAMPLES
+            for p in pair_pos
+            if p not in set(EXCLUDE_FITS.get(s, []))]
+
 ##--------------------------------------##
 ##  Target rule                         ##
 ##--------------------------------------##
 rule all:
      input:
-        expand("Data/Fit/{sample}_plot_{pair}.pdf", sample=SAMPLES , pair= pair_pos), "Data/Tables/summary_flux.tsv", "Data/Tables/summary_single_DT.tsv", "Data/Tables/summary_pair_DT.tsv"
+        fit_targets("Data/Fit/{sample}_plot_{pair}.pdf"), "Data/Tables/summary_flux.tsv", "Data/Tables/summary_single_DT.tsv", "Data/Tables/summary_pair_DT.tsv", expand("Data/A_site_offset/{sample}_A_site_profiles.pdf", sample=RIBO_SAMPLES)
 ##--------------------------------------##
 ##  Download gtf from Ensembl           ##
 ##--------------------------------------##
@@ -129,6 +203,26 @@ rule mergefastq:
         "Data/Raw/{sample}.fastq.merge"
     shell: "cat {input} > {output}"
 
+##----------------------------------------------------##
+##  Adapter trimming and UMI PCR-deduplication         ##
+##----------------------------------------------------##
+## Only part of the DAG when config['umi']['enabled'] is true.
+## Read layout: 5'-[UMI left][insert][UMI right][3' adapter]-3'
+
+rule dedup_umi:
+    input:
+        get_merged_fastq
+    output:
+        "Data/Raw/{sample}.fastq.dedup"
+    params:
+        adapter = UMI.get('adapter', ''),
+        umi_left = UMI.get('left', 0),
+        umi_right = UMI.get('right', 0),
+        min_insert = UMI.get('min_insert', 10)
+    log:
+        "Data/Raw/{sample}.dedup.log"
+    shell: "perl {homedir}Script/DedupUMI.pl {input} {params.adapter} {params.umi_left} {params.umi_right} {params.min_insert} {output} 2> {log}"
+
 ##--------------------------------------##
 ##  STAR alignment to the genome        ##
 ##--------------------------------------##
@@ -136,7 +230,7 @@ rule mergefastq:
 
 rule runstar:
     input:
-        fastq = "Data/Raw/{sample}.fastq.merge" , genome= rules.run_index_star.output.genome
+        fastq = get_star_fastq , genome= rules.run_index_star.output.genome
     output:
         "Data/Mapping/{sample}Aligned.sortedByCoord.out.bam"
     params: star_params = "--outSAMtype BAM SortedByCoordinate --seedSearchStartLmax 15 --limitBAMsortRAM 61000000000",
@@ -208,29 +302,77 @@ rule findAsite:
     params:
         L1 = config["L1"],
         L2 = config["L2"],
-        A_site_end = config["A_site_end"]
+        A_site_end = config["A_site_end"],
+        win_lo = A_SITE_WINDOW[0],
+        win_hi = A_SITE_WINDOW[1],
+        off_shift = A_SITE_OFFSET_SHIFT,
+        fixed_off = A_SITE_FIXED_OFFSET
     wildcard_constraints: sample=".*RIBO.*"   
-    shell: "Rscript {homedir}Script/find_A_pos.R {input.A_site} {params.L1} {params.L2} {params.A_site_end} {output.tsv} {output.pdf}"
+    shell: "Rscript {homedir}Script/find_A_pos.R {input.A_site} {params.L1} {params.L2} {params.A_site_end} {output.tsv} {output.pdf} {params.win_lo} {params.win_hi} {params.off_shift} {params.fixed_off}"
+
+
+##------------------------------------------------------##
+##  A-site profile diagnostic, all lengths, wide window ##
+##------------------------------------------------------##
+## Independent of L1/L2 and of A_site_window: it plots every length present
+## in the pile-up over a wide range, with no peak selection. That is what is
+## needed to CHOOSE the size window and the search window in the first place -
+## find_A_pos.R only ever plots L1:L2, so a population outside the current
+## thresholds is invisible there.
+
+rule plot_A_site_profiles:
+    input:
+        A_site = "Data/A_site_offset/{sample}_A_site_pos.tsv"
+    output:
+        pdf = "Data/A_site_offset/{sample}_A_site_profiles.pdf"
+    params:
+        xlo = -100,
+        xhi = 60,
+        win_lo = A_SITE_WINDOW[0],
+        win_hi = A_SITE_WINDOW[1],
+        A_site_end = config["A_site_end"]
+    wildcard_constraints: sample=".*RIBO.*"
+    shell: "Rscript {homedir}Script/plot_A_site_profiles.R {input.A_site} {output.pdf} {params.xlo} {params.xhi} {params.win_lo} {params.win_hi} {params.A_site_end}"
 
 
 ##--------------------------------------##
 ## Read counting and CDS position       ##
 ##--------------------------------------##
 
-rule countreads:
+rule make_shards:
     input:
-        bam = "Data/Mapping/{sample}Aligned.sortedByCoord.out.bam", 
+        cds = rules.download_ensembl_cds.output.cds
+    output:
+        expand("Data/Counting/shards/{shard}.txt", shard=SHARDS)
+    params:
+        n = N_SHARDS,
+        outdir = "Data/Counting/shards"
+    shell: "python3 {homedir}Script/make_shards.py {input.cds} {params.n} {params.outdir}"
+
+rule countreads_shard:
+    input:
+        bam = "Data/Mapping/{sample}Aligned.sortedByCoord.out.bam",
 	bam_index = "Data/Mapping/{sample}Aligned.sortedByCoord.out.bam.bai",
 	cds = rules.download_ensembl_cds.output.cds,
-	A_site_pos = get_AsiteRNA_from_ribo
+	A_site_pos = get_AsiteRNA_from_ribo,
+	shard = "Data/Counting/shards/{shard}.txt"
     output:
-        "Data/Counting/{sample}.count" 
-    params: 
+        temp("Data/Counting/{sample}.shard{shard}.count")
+    params:
         L1 = config["L1"],
         L2 = config["L2"],
         STRAND = config["library"],
         A_site_end = config["A_site_end"]
-    shell: "perl {homedir}Script/CountingFullSeq_Apos.pl {input.bam} {params.L1} {params.L2} {params.STRAND} {params.A_site_end} {input.cds} {input.A_site_pos} {output}"
+    wildcard_constraints: sample="[^.]+", shard="[0-9]+"
+    shell: "perl {homedir}Script/CountingFullSeq_Apos.pl {input.bam} {params.L1} {params.L2} {params.STRAND} {params.A_site_end} {input.cds} {input.A_site_pos} {output} {input.shard}"
+
+rule countreads:
+    input:
+        expand("Data/Counting/{{sample}}.shard{shard}.count", shard=SHARDS)
+    output:
+        "Data/Counting/{sample}.count"
+    wildcard_constraints: sample="[^.]+"
+    shell: "cat {input} > {output}"
 
 ##--------------------------------------##
 ## Parse CDS for ref. in the fit        ##
@@ -243,6 +385,20 @@ rule parsecds:
         parse_cds = refdir + spec + '/ensembl.cds.parse.fa'
     shell: "perl {homedir}Script/CdsAllSeq.pl {input} >  {output}"
 
+##--------------------------------------------------##
+## Cache of every in-frame 40-codon CDS window       ##
+##--------------------------------------------------##
+## Its own rule on purpose: LoadAndGenData.R used to build this behind an
+## "if (!file.exists)" guard, so the parallel loaddata jobs all raced to write
+## the same file and readers died on a half-written RData.
+
+rule prep_cds_rdata:
+    input:
+        parse_cds = rules.parsecds.output.parse_cds
+    output:
+        rdata = refdir + spec + '/ensembl.cds.parse.fa.RData'
+    shell: "Rscript {homedir}Script/PrepCdsRData.R {input.parse_cds}"
+
 ##--------------------------------------##
 ## Load count file and gen. matrix      ##
 ##--------------------------------------##
@@ -250,10 +406,12 @@ rule parsecds:
 rule loaddata:
     input:
         count_2="Data/Counting/{sample}.count", 
-        parse_cds=rules.parsecds.output.parse_cds
+        parse_cds=rules.parsecds.output.parse_cds,
+        cds_rdata=rules.prep_cds_rdata.output.rdata
     output:
         "Data/Counting/{sample}_ncount.RData"
     params: filter_1 = config['filter_1']
+    wildcard_constraints: sample="[^.]+"
     shell: "Rscript {homedir}Script/LoadAndGenData.R {input.count_2} {output} {input.parse_cds} {params.filter_1}"
 
 ##--------------------------------------##
@@ -317,7 +475,7 @@ rule heatmap:
 
 rule output_table:
     input:
-        expand("Data/Fit/{sample}_coe_pval_{pair}.RData", sample=SAMPLES , pair= pair_pos)
+        fit_targets("Data/Fit/{sample}_coe_pval_{pair}.RData")
     output:
         "Data/Tables/summary_flux.tsv", "Data/Tables/summary_single_DT.tsv", "Data/Tables/summary_pair_DT.tsv"
     shell: "Rscript {homedir}Script/OutputTable.R {input}"

@@ -29,6 +29,13 @@ sub load_cds{
           $stop = (split(/\:/,$attr[2]))[4];
           $strand = (split(/\:/,$attr[2]))[5];
           $comp = "$chr\:$start\-$stop";
+          # Optional shard filter ($list[2] = hashref of contigs to keep, or undef).
+          # Sharding by contig is exact: reads are NH:i:1 so each has a single
+          # locus, and no gene has transcripts on more than one contig, so the
+          # global %read_tot dedup partitions cleanly across shards. Sorting a
+          # subset also preserves the relative order of "sort keys %master",
+          # so the same gene claims each shared read as in a serial run.
+          next if defined($list[2]) && !exists($list[2]->{$chr});
           @a = @a[1 .. $#a];
           $seq = join('',@a);
          $l2=length($seq);
@@ -60,7 +67,16 @@ sub load_cds{
  my $cds = shift;
  my $file_apos = shift;
  my $file_out = shift;
- my %master = load_cds($cds, $strand_mode);
+ my $contig_file = shift;   # optional: file listing the contigs of this shard
+ my $keep;
+ if (defined $contig_file) {
+   my %kc;
+   open my $CF, '<', $contig_file or die "Cannot open $contig_file: $!";
+   while (my $c = <$CF>) { chomp $c; $kc{$c} = 1 if length $c; }
+   close $CF;
+   $keep = \%kc;   # an empty shard file yields no genes, never "all genes"
+ }
+ my %master = load_cds($cds, $strand_mode, $keep);
 
 
 ############ Load A site position #####
@@ -121,36 +137,38 @@ close $fh;
 		                                 $rseq = substr $read[9], 0, $length;
 						}
 							
-						if($master{$k}{$k2}{'seq'} =~ $rseq and $length > $l_1 and $length < $l_2){ # if sequence match fasta cds
+						if($master{$k}{$k2}{'seq'} =~ $rseq and $length >= $l_1 and $length <= $l_2){ # if sequence match fasta cds
 						 my $posi = $-[0];
 						 $read_tot{$read[0]}=1;	
 					         my $posi2=$posi;
-						 my $frame = '0';
-							if(($posi + 1) % 3 == 0){ # Align the read in the right frame
-							 $frame= '2';
-							}
+						 # Key into the A-site offset table. find_A_pos.R keys the three
+						 # offsets by their own residue mod 3, which equals (CDS offset) mod 3
+						 # for a 5'-anchored read and (CDS offset + length) mod 3 for a
+						 # 3'-anchored one - otherwise the 120 nt window comes out of frame.
+						 my $frame = ($a_site_end eq '5p') ? $posi % 3 : ($posi + $length) % 3;
 
-							if(($posi + 2) % 3 == 0){ # Align the read in the right frame
-							 $frame='1';
-		                                        }
-							my $shift_pos;
-
-							if($a_site_end eq '5p'){
-							 $shift_pos = $posi2 + $As_pos{$length}{$frame} - 15 - 60;
-							}
-							else{
-							 $shift_pos = $posi2 + $l - $As_pos{$length}{$frame} - 15 - 60;
-							}
+						 # No offset inferred for this fragment length: drop the read rather
+						 # than silently treating the missing offset as zero.
+						 next unless exists $As_pos{$length} and defined $As_pos{$length}{$frame};
+							# A-site position in the CDS: offset counted from the 5' end, or
+							# back from the 3' end. The 120 nt window starts 25 codons
+							# (75 nt) upstream of it. The reported position must be this
+							# same A-site; it used to be 5' end + offset in both modes,
+							# which is wrong for 3'-anchored reads.
+							my $a_pos = ($a_site_end eq '5p')
+							          ? $posi2 + $As_pos{$length}{$frame}
+							          : $posi2 + $l - $As_pos{$length}{$frame};
+							my $shift_pos = $a_pos - 15 - 60;
 
 					  	 my $rseq_2= substr($master{$k}{$k2}{'seq'}, $shift_pos, 120);
 						 
 							if(exists($codon{$rseq_2})){
 						 	 $codon{$rseq_2}++;
-						 	 $codon_pos{$rseq_2}{'pos'}=$posi2 + $As_pos{$length}{$frame};
+						 	 $codon_pos{$rseq_2}{'pos'}=$a_pos;
 							}else{
 						 	 $codon{$rseq_2}=1;
 						 	 $codon_pos{$rseq_2}{'trans'}=  $k2;	
-						 	 $codon_pos{$rseq_2}{'pos'}=  $posi2 + $As_pos{$length}{$frame};	
+						 	 $codon_pos{$rseq_2}{'pos'}=  $a_pos;	
 							}
 						}
 					
